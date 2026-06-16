@@ -1,0 +1,23 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head><meta charset="UTF-8"><title>Xác thực tài khoản</title></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+  <div style="background:#e53935;padding:24px;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:24px;">KinhDuanPC</h1>
+  </div>
+  <div style="padding:32px;">
+    <h2 style="color:#333;">Xin chào <span th:text="${name}">Bạn</span>!</h2>
+    <p style="color:#666;line-height:1.6;">Mã OTP xác thực tài khoản của bạn là:</p>
+    <div style="text-align:center;margin:32px 0;">
+      <span style="font-size:42px;font-weight:bold;letter-spacing:12px;color:#e53935;background:#fff5f5;padding:16px 32px;border-radius:8px;border:2px dashed #e53935;"
+            th:text="${otp}">000000</span>
+    </div>
+    <p style="color:#999;font-size:14px;">Mã có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+  </div>
+  <div style="background:#f8f8f8;padding:16px;text-align:center;color:#999;font-size:12px;">
+    © 2026 KinhDuanPC - Website Bán Máy Tính Trực Tuyến
+  </div>
+</div>
+</body>
+</html>

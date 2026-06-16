@@ -1,0 +1,115 @@
+﻿server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  output:
+    ansi:
+      enabled: always
+
+  application:
+    name: kinhduanpc-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=public
+    username: postgres
+    password: admin
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+
+  liquibase:
+    enabled: false
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    default-schema: public
+    contexts: dev
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope: email, profile
+          facebook:
+            client-id: ${FACEBOOK_CLIENT_ID:your-fb-client-id}
+            client-secret: ${FACEBOOK_CLIENT_SECRET:your-fb-client-secret}
+            scope: email, public_profile
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:kinhduanpc-secret-key-must-be-at-least-256-bits-long-for-hmac-sha256}
+  access-token-expiry: 3600000       # 1 hour in ms
+  refresh-token-expiry: 2592000000   # 30 days in ms
+
+# File upload
+file:
+  upload-dir: ${FILE_UPLOAD_DIR:./uploads}
+  base-url: ${FILE_BASE_URL:http://localhost:8080/api/files}
+
+# App config
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3001}
+  otp:
+    expiry-minutes: 5
+    max-resend-per-hour: 3
+  order:
+    auto-cancel-hours: 48
+    auto-complete-days: 7
+    return-deadline-days: 15
+
+# Springdoc OpenAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+# Logging — cấu hình chi tiết trong logback-spring.xml
+logging:
+  level:
+    root: INFO
+    hibernate.orm.jdbc.bind: TRACE
+
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: never
