@@ -39,6 +39,7 @@ public class ProductService {
         return productRepo.searchByKeyword(keyword, pageable).map(this::toSummaryResponse);
     }
 
+    @Transactional
     public ProductResponse getBySlug(String slug) {
         Product p = productRepo.findBySlug(slug)
             .orElseThrow(() -> AppException.notFound("Sản phẩm"));

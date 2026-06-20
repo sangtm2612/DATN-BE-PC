@@ -20,9 +20,11 @@ public class Category {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Category parent;
 
     @OneToMany(mappedBy = "parent", fetch = FetchType.LAZY)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<Category> children = new ArrayList<>();
 
     @Column(nullable = false, length = 150)
