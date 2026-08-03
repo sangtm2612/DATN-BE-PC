@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/orders/track").permitAll()
                 .requestMatchers(HttpMethod.GET, "/warranties/lookup").permitAll()
                 .requestMatchers("/files/**").permitAll()
+                .requestMatchers("/cart/**").permitAll()
                 // Admin-only
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/products/**").hasAnyRole("ADMIN", "STAFF")
@@ -71,7 +72,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "https://*.kinhduanpc.vn"));
+        config.setAllowedOriginPatterns(List.of("http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "https://*.kinhduanpc.vn", "https://*.onrender.com"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

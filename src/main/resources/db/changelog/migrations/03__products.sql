@@ -141,7 +141,7 @@ CREATE INDEX idx_pc_components_product ON pc_components(product_id);
 -- Cấu hình PC đã lưu (của user hoặc template admin — UC-08)
 CREATE TABLE pc_builds (
                            id            SERIAL PRIMARY KEY,
-                           user_id       INT           REFERENCES users(id) ON DELETE SET NULL,
+                           user_id       INT,
                            store_id      INT,                                -- Showroom đã chọn khi build
                            name          VARCHAR(200),
                            description   TEXT,

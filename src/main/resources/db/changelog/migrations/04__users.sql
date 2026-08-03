@@ -80,3 +80,7 @@ CREATE TABLE user_addresses (
                                 updated_at     TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_user_addresses_user ON user_addresses(user_id);
+
+-- Add FK from pc_builds to users (deferred because users is created after pc_builds)
+ALTER TABLE pc_builds ADD CONSTRAINT fk_pc_builds_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;

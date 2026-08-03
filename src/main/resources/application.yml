@@ -1,5 +1,5 @@
-﻿server:
-  port: 8080
+server:
+  port: ${PORT:8080}
   servlet:
     context-path: /api
 
@@ -12,9 +12,9 @@ spring:
     name: kinhduanpc-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=public
-    username: postgres
-    password: admin
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/postgres?currentSchema=public}
+    username: ${DATASOURCE_USERNAME:postgres}
+    password: ${DATASOURCE_PASSWORD:admin}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20

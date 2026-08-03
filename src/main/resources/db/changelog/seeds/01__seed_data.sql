@@ -269,7 +269,7 @@ VALUES (
            'active'::user_status,
            'admin@kinhduanpc.vn',
            '0900000000',
-           '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCEy0N8gAA8pNzZ.x3DV9mO',
+           '$2b$12$xEg6WcusPpkoC6zBiCLLJutw0wYhh.n3Q4hBs4osnM658W9ChFSsi',
            'Quản trị viên',
            true, true
        )
