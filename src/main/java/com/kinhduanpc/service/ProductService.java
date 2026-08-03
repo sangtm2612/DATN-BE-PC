@@ -6,6 +6,7 @@ import com.kinhduanpc.exception.AppException;
 import com.kinhduanpc.repository.ProductRepository;
 import com.kinhduanpc.repository.CategoryRepository;
 import com.kinhduanpc.repository.BrandRepository;
+import com.kinhduanpc.repository.ProductRelatedRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class ProductService {
     private final ProductRepository productRepo;
     private final CategoryRepository categoryRepo;
     private final BrandRepository brandRepo;
+    private final ProductRelatedRepository productRelatedRepo;
 
     public Page<ProductResponse> getProducts(Long categoryId, Long brandId,
                                               BigDecimal minPrice, BigDecimal maxPrice,
@@ -73,7 +75,19 @@ public class ProductService {
                           .stream().map(this::toSummaryResponse).toList();
     }
 
-    public List<ProductResponse> getRelated(Long productId, int limit) {
+    /**
+     * curatedOnly=true bo qua fallback cung-category — dung cho UI admin de
+     * phan biet "chua gan lien quan nao" voi ket qua goi y tu dong.
+     */
+    public List<ProductResponse> getRelated(Long productId, int limit, boolean curatedOnly) {
+        List<ProductRelated> curated = productRelatedRepo.findByProductIdOrderBySortOrderAsc(productId);
+        if (!curated.isEmpty()) {
+            return curated.stream()
+                .limit(limit)
+                .map(pr -> toSummaryResponse(pr.getRelatedProduct()))
+                .toList();
+        }
+        if (curatedOnly) return List.of();
         Product p = productRepo.findById(productId)
             .orElseThrow(() -> AppException.notFound("Sản phẩm"));
         return productRepo.findRelatedProducts(p.getCategory().getId(), productId, PageRequest.of(0, limit))
@@ -180,6 +194,8 @@ public class ProductService {
         resp.setAttributeGroups(grouped.entrySet().stream()
             .map(e -> new ProductResponse.AttributeGroup(e.getKey(), e.getValue()))
             .toList());
+
+        resp.setTags(p.getTags().stream().map(Tag::getName).toList());
 
         return resp;
     }

@@ -66,12 +66,12 @@ public class OrderService {
                     "Đơn hàng cần tối thiểu " + voucher.getMinOrderValue() + "đ để dùng voucher này");
             }
 
-            if ("percent".equals(voucher.getDiscountType())) {
+            if (voucher.getDiscountType() == Voucher.DiscountType.percent) {
                 discountAmount = subtotal.multiply(voucher.getDiscountValue()).divide(BigDecimal.valueOf(100));
                 if (voucher.getMaxDiscount() != null && discountAmount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discountAmount = voucher.getMaxDiscount();
                 }
-            } else if ("fixed_amount".equals(voucher.getDiscountType())) {
+            } else if (voucher.getDiscountType() == Voucher.DiscountType.fixed_amount) {
                 discountAmount = voucher.getDiscountValue();
             }
 
@@ -80,7 +80,7 @@ public class OrderService {
         }
 
         // Shipping fee
-        BigDecimal shippingFee = "free_shipping".equals(voucher != null ? voucher.getDiscountType() : "")
+        BigDecimal shippingFee = (voucher != null && voucher.getDiscountType() == Voucher.DiscountType.free_shipping)
             ? BigDecimal.ZERO
             : BigDecimal.valueOf(30000); // Default 30k
 

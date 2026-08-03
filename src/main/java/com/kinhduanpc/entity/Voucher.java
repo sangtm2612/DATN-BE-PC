@@ -3,6 +3,8 @@ package com.kinhduanpc.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,8 +24,10 @@ public class Voucher {
     @Column(length = 200)
     private String name;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "discount_type", nullable = false, columnDefinition = "discount_type")
-    private String discountType; // percent, fixed_amount, free_shipping
+    private DiscountType discountType;
 
     @Column(name = "discount_value", nullable = false, precision = 10, scale = 2)
     private BigDecimal discountValue;
@@ -66,4 +70,6 @@ public class Voucher {
                && now.isAfter(startDate) && now.isBefore(endDate)
                && (usageLimit == null || usedCount < usageLimit);
     }
+
+    public enum DiscountType { percent, fixed_amount, free_shipping }
 }

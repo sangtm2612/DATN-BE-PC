@@ -3,7 +3,9 @@ package com.kinhduanpc.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,15 +29,18 @@ public class Order {
     private User user;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(columnDefinition = "order_status", nullable = false)
     @Builder.Default
     private OrderStatus status = OrderStatus.pending;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "payment_method", columnDefinition = "payment_method", nullable = false)
     private PaymentMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "payment_status", columnDefinition = "payment_status", nullable = false)
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.pending;
@@ -86,8 +91,9 @@ public class Order {
     @Column(name = "voucher_code", length = 50)
     private String voucherCode;
 
-    @Column(name = "build_id")
-    private Long buildId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "build_id")
+    private PcBuild build;
 
     @Column(columnDefinition = "TEXT")
     private String note;

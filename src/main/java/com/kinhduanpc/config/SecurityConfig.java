@@ -47,7 +47,7 @@ public class SecurityConfig {
                     "/auth/refresh", "/auth/forgot-password", "/auth/reset-password",
                     "/auth/verify-email", "/auth/resend-otp").permitAll()
                 .requestMatchers(HttpMethod.GET,
-                    "/products/**", "/categories/**", "/brands/**",
+                    "/products/**", "/categories/**", "/brands/**", "/tags/**",
                     "/banners/**", "/stores/**", "/blog/**",
                     "/search/**", "/home/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/track").permitAll()

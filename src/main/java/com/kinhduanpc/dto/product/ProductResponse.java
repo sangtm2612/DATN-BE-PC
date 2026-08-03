@@ -40,6 +40,7 @@ public class ProductResponse {
     private BrandInfo brand;
     private List<ImageInfo> images;
     private List<AttributeGroup> attributeGroups;
+    private List<String> tags;
 
     @Data @AllArgsConstructor @NoArgsConstructor
     public static class CategoryInfo {

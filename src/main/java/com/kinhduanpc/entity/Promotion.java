@@ -3,6 +3,8 @@ package com.kinhduanpc.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,8 +20,11 @@ public class Promotion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "promotion_type", nullable = false, columnDefinition = "promotion_type")
-    private String promotionType = "general";
+    @Builder.Default
+    private PromotionType promotionType = PromotionType.general;
 
     @Column(nullable = false, length = 200)
     private String name;
@@ -27,8 +32,10 @@ public class Promotion {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "discount_type", nullable = false, columnDefinition = "discount_type")
-    private String discountType;
+    private Voucher.DiscountType discountType;
 
     @Column(name = "discount_value", nullable = false, precision = 10, scale = 2)
     private BigDecimal discountValue;
@@ -90,4 +97,6 @@ public class Promotion {
         LocalDateTime now = LocalDateTime.now();
         return isActive && now.isAfter(startDate) && now.isBefore(endDate);
     }
+
+    public enum PromotionType { general, build_pc, student, brand_deal, give_away, flash_sale }
 }

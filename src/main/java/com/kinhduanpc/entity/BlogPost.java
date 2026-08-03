@@ -6,6 +6,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "blog_posts")
@@ -62,4 +64,12 @@ public class BlogPost {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @ManyToMany
+    @JoinTable(name = "blog_post_products",
+        joinColumns = @JoinColumn(name = "post_id"),
+        inverseJoinColumns = @JoinColumn(name = "product_id"))
+    @Builder.Default
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private List<Product> mentionedProducts = new ArrayList<>();
 }

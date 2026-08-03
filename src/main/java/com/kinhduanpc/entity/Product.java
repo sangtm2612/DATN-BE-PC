@@ -125,4 +125,11 @@ public class Product {
     @OrderBy("sortOrder ASC")
     @Builder.Default
     private List<ProductAttribute> attributes = new ArrayList<>();
+
+    @ManyToMany
+    @JoinTable(name = "product_tags",
+        joinColumns = @JoinColumn(name = "product_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    @Builder.Default
+    private List<Tag> tags = new ArrayList<>();
 }
