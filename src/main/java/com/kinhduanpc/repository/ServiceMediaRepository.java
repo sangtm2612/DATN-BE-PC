@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface ServiceMediaRepository extends JpaRepository<ServiceMedia, Long> {
     List<ServiceMedia> findByServiceRequestIdOrderBySortOrderAsc(Long serviceRequestId);
+    List<ServiceMedia> findByServiceRequestIdInOrderBySortOrderAsc(List<Long> serviceRequestIds);
 }

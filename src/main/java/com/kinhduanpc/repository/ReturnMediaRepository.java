@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface ReturnMediaRepository extends JpaRepository<ReturnMedia, Long> {
     List<ReturnMedia> findByReturnRequestIdOrderBySortOrderAsc(Long returnRequestId);
+    List<ReturnMedia> findByReturnRequestIdInOrderBySortOrderAsc(List<Long> returnRequestIds);
 }

@@ -40,6 +40,7 @@ public class User {
     private String phone;
 
     @Column(name = "password_hash", length = 255)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
 
     @Column(name = "full_name", length = 150)
@@ -64,9 +65,11 @@ public class User {
 
     @Column(name = "login_attempts", nullable = false)
     @Builder.Default
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Short loginAttempts = 0;
 
     @Column(name = "locked_until")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private LocalDateTime lockedUntil;
 
     @Column(name = "tax_code", length = 20)

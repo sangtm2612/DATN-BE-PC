@@ -34,4 +34,7 @@ public class CreateOrderRequest {
 
     // Trả góp
     private Long installmentPlanId;
+
+    // Đặt hàng từ cấu hình Build PC đã lưu
+    private Long buildId;
 }

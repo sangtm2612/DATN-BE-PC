@@ -3,8 +3,10 @@ package com.kinhduanpc.controller;
 import com.kinhduanpc.dto.ApiResponse;
 import com.kinhduanpc.entity.Product;
 import com.kinhduanpc.entity.Review;
+import com.kinhduanpc.entity.ReviewHelpful;
 import com.kinhduanpc.exception.AppException;
 import com.kinhduanpc.repository.ProductRepository;
+import com.kinhduanpc.repository.ReviewHelpfulRepository;
 import com.kinhduanpc.repository.ReviewRepository;
 import com.kinhduanpc.repository.UserRepository;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/reviews")
@@ -30,6 +33,7 @@ public class ReviewController {
     private final ReviewRepository reviewRepo;
     private final UserRepository userRepo;
     private final ProductRepository productRepo;
+    private final ReviewHelpfulRepository reviewHelpfulRepo;
 
     @GetMapping("/product/{productId}")
     public ResponseEntity<ApiResponse<List<Review>>> getByProduct(
@@ -72,6 +76,37 @@ public class ReviewController {
             .build();
 
         return ResponseEntity.ok(ApiResponse.success(reviewRepo.save(review), "Đánh giá thành công"));
+    }
+
+    @PostMapping("/{id}/helpful")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleHelpful(
+            @PathVariable Long id, Authentication auth) {
+
+        Long userId = (Long) auth.getPrincipal();
+        Review review = reviewRepo.findById(id).orElseThrow(() -> AppException.notFound("Đánh giá"));
+
+        boolean nowHelpful;
+        if (reviewHelpfulRepo.existsByUserIdAndReviewId(userId, id)) {
+            reviewHelpfulRepo.deleteById(new com.kinhduanpc.entity.ReviewHelpfulId(userId, id));
+            nowHelpful = false;
+        } else {
+            var user = userRepo.findById(userId).orElseThrow(() -> AppException.notFound("Người dùng"));
+            try {
+                reviewHelpfulRepo.saveAndFlush(ReviewHelpful.builder().user(user).review(review).build());
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                // Da duoc danh dau boi 1 request dong thoi khac (double-click/race) -> coi nhu thanh cong, khong loi
+            }
+            nowHelpful = true;
+        }
+
+        long count = reviewHelpfulRepo.countByReviewId(id);
+        review.setHelpfulCount((int) count);
+        reviewRepo.save(review);
+
+        return ResponseEntity.ok(ApiResponse.success(
+            Map.of("helpfulCount", count, "isHelpful", nowHelpful),
+            nowHelpful ? "Đã đánh dấu hữu ích" : "Đã bỏ đánh dấu hữu ích"));
     }
 
     @Data

@@ -35,6 +35,9 @@ public class OrderResponse {
     private String note;
     private String cancelledReason;
 
+    private Long buildId;
+    private String buildName;
+
     private LocalDateTime createdAt;
     private LocalDateTime confirmedAt;
     private LocalDateTime shippedAt;

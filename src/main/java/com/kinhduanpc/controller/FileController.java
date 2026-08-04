@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,8 +25,16 @@ public class FileController {
     @Value("${file.base-url:http://localhost:8080/api/files}")
     private String baseUrl;
 
+    // Whitelist tra ve tu content-type -> extension co dinh, khong tin filename/Content-Type
+    // client gui de suy ra phan mo rong (chan svg script injection va extension gia mao).
+    private static final Map<String, String> ALLOWED_IMAGE_TYPES = Map.of(
+        "image/jpeg", ".jpg",
+        "image/png", ".png",
+        "image/webp", ".webp",
+        "image/gif", ".gif"
+    );
+
     @PostMapping("/image")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<ApiResponse<Map<String, String>>> uploadImage(
             @RequestParam("file") MultipartFile file) throws IOException {
 
@@ -37,9 +44,10 @@ public class FileController {
         }
 
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
+        String ext = contentType != null ? ALLOWED_IMAGE_TYPES.get(contentType) : null;
+        if (ext == null) {
             return ResponseEntity.badRequest()
-                .body(ApiResponse.error("INVALID_FILE_TYPE", "Chỉ chấp nhận file ảnh"));
+                .body(ApiResponse.error("INVALID_FILE_TYPE", "Chỉ chấp nhận ảnh JPG, PNG, WEBP, GIF"));
         }
 
         if (file.getSize() > 10 * 1024 * 1024) {
@@ -47,7 +55,6 @@ public class FileController {
                 .body(ApiResponse.error("FILE_TOO_LARGE", "File tối đa 10MB"));
         }
 
-        String ext = getExtension(file.getOriginalFilename());
         String filename = UUID.randomUUID() + ext;
 
         Path uploadPath = Paths.get(uploadDir);
@@ -59,11 +66,5 @@ public class FileController {
         log.info("Uploaded file: {}", filename);
 
         return ResponseEntity.ok(ApiResponse.success(Map.of("url", url, "filename", filename)));
-    }
-
-    private String getExtension(String filename) {
-        if (filename == null) return ".jpg";
-        int idx = filename.lastIndexOf('.');
-        return idx >= 0 ? filename.substring(idx) : ".jpg";
     }
 }

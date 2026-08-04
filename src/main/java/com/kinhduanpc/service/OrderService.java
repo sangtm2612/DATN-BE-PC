@@ -27,8 +27,16 @@ public class OrderService {
     private final ProductRepository productRepo;
     private final UserRepository userRepo;
     private final VoucherRepository voucherRepo;
+    private final PcBuildRepository pcBuildRepo;
+    private final PromotionService promotionService;
+    private final ShippingMethodRepository shippingMethodRepo;
+    private final OrderShippingRepository orderShippingRepo;
+    private final ProductStockByStoreRepository stockByStoreRepo;
+    private final StoreRepository storeRepo;
     private final EmailService emailService;
     private final NotificationService notificationService;
+
+    private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
     private static final AtomicInteger sequence = new AtomicInteger(1);
 
@@ -54,8 +62,19 @@ public class OrderService {
             subtotal = subtotal.add(p.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
         }
 
-        // Voucher
-        BigDecimal discountAmount = BigDecimal.ZERO;
+        // Build PC (nếu đặt hàng từ cấu hình đã lưu) — resolve trước để PromotionService biết
+        // co ap dung uu dai build_pc (CPU %/cash bonus) hay khong.
+        PcBuild build = null;
+        if (req.getBuildId() != null) {
+            build = pcBuildRepo.findById(req.getBuildId())
+                .orElseThrow(() -> AppException.notFound("Cấu hình PC"));
+            if (!build.getUserId().equals(userId)) {
+                throw AppException.forbidden("Bạn không có quyền dùng cấu hình PC này");
+            }
+        }
+
+        // Voucher (nhập tay)
+        BigDecimal voucherDiscount = BigDecimal.ZERO;
         Voucher voucher = null;
         if (req.getVoucherCode() != null && !req.getVoucherCode().isBlank()) {
             voucher = voucherRepo.findValidByCode(req.getVoucherCode(), LocalDateTime.now())
@@ -67,22 +86,57 @@ public class OrderService {
             }
 
             if (voucher.getDiscountType() == Voucher.DiscountType.percent) {
-                discountAmount = subtotal.multiply(voucher.getDiscountValue()).divide(BigDecimal.valueOf(100));
-                if (voucher.getMaxDiscount() != null && discountAmount.compareTo(voucher.getMaxDiscount()) > 0) {
-                    discountAmount = voucher.getMaxDiscount();
+                voucherDiscount = subtotal.multiply(voucher.getDiscountValue()).divide(BigDecimal.valueOf(100));
+                if (voucher.getMaxDiscount() != null && voucherDiscount.compareTo(voucher.getMaxDiscount()) > 0) {
+                    voucherDiscount = voucher.getMaxDiscount();
                 }
             } else if (voucher.getDiscountType() == Voucher.DiscountType.fixed_amount) {
-                discountAmount = voucher.getDiscountValue();
+                voucherDiscount = voucher.getDiscountValue();
             }
 
             voucher.setUsedCount(voucher.getUsedCount() + 1);
             voucherRepo.save(voucher);
         }
 
+        // Khuyến mãi tự động (Promotion) — snapshot tại thời điểm đặt hàng, không dùng lại
+        // giá trị FE gửi lên để tránh khách sửa giá qua request hoặc promotion đã hết hạn.
+        List<PromotionService.LineItem> lineItems = cart.getItems().stream()
+            .map(i -> new PromotionService.LineItem(i.getProduct(), i.getQuantity(), i.getProduct().getPrice()))
+            .toList();
+        PromotionService.PromotionCalcResult promoResult =
+            promotionService.calculateDiscount(lineItems, subtotal, build);
+
+        // Voucher + Promotion cộng dồn, không vượt quá subtotal đơn hàng
+        BigDecimal discountAmount = voucherDiscount
+            .add(promoResult.getDiscountAmount())
+            .add(promoResult.getCashBonus());
+        if (discountAmount.compareTo(subtotal) > 0) discountAmount = subtotal;
+
         // Shipping fee
-        BigDecimal shippingFee = (voucher != null && voucher.getDiscountType() == Voucher.DiscountType.free_shipping)
-            ? BigDecimal.ZERO
-            : BigDecimal.valueOf(30000); // Default 30k
+        ShippingMethod shippingMethod = null;
+        BigDecimal shippingFee;
+        if (req.getShippingMethodId() != null) {
+            shippingMethod = shippingMethodRepo.findById(req.getShippingMethodId())
+                .orElseThrow(() -> AppException.notFound("Phương thức giao hàng"));
+            shippingFee = shippingMethod.getBaseFee();
+            if (shippingMethod.getFreeThreshold() != null
+                    && subtotal.compareTo(shippingMethod.getFreeThreshold()) >= 0) {
+                shippingFee = BigDecimal.ZERO;
+            }
+        } else {
+            shippingFee = DEFAULT_SHIPPING_FEE;
+        }
+        if (voucher != null && voucher.getDiscountType() == Voucher.DiscountType.free_shipping) {
+            shippingFee = BigDecimal.ZERO;
+        }
+        if (req.getPickupStoreId() != null) {
+            Store pickupStore = storeRepo.findById(req.getPickupStoreId())
+                .orElseThrow(() -> AppException.notFound("Cửa hàng"));
+            if (!Boolean.TRUE.equals(pickupStore.getIsActive())) {
+                throw AppException.badRequest("STORE_INACTIVE", "Cửa hàng này hiện không nhận đơn tại quầy");
+            }
+            shippingFee = BigDecimal.ZERO; // Nhận tại showroom — không phát sinh phí ship
+        }
 
         BigDecimal totalAmount = subtotal.subtract(discountAmount).add(shippingFee);
         if (totalAmount.compareTo(BigDecimal.ZERO) < 0) totalAmount = BigDecimal.ZERO;
@@ -108,6 +162,7 @@ public class OrderService {
             .voucherCode(req.getVoucherCode())
             .pickupStoreId(req.getPickupStoreId())
             .note(req.getNote())
+            .build(build)
             .build();
 
         // COD auto-cancel after 48h
@@ -137,6 +192,28 @@ public class OrderService {
         }
 
         orderRepo.save(order);
+
+        // Ghi nhận phương thức/phí giao hàng cho đơn
+        orderShippingRepo.save(OrderShipping.builder()
+            .order(order)
+            .method(shippingMethod)
+            .pickupStoreId(req.getPickupStoreId())
+            .shippingFee(shippingFee)
+            .status("pending")
+            .build());
+
+        // Nhận tại showroom: trừ tồn kho riêng của showroom đó (lớp bổ sung, không đụng
+        // products.stock_qty tổng — showroom có thể chưa được seed tồn kho riêng nên bỏ qua
+        // nếu không có bản ghi, tránh chặn luồng đặt hàng vì thiếu dữ liệu bổ trợ).
+        if (req.getPickupStoreId() != null) {
+            for (OrderItem item : order.getItems()) {
+                ProductStockByStoreId key = new ProductStockByStoreId(item.getProduct().getId(), req.getPickupStoreId());
+                stockByStoreRepo.findById(key).ifPresent(stock -> {
+                    stock.setStockQty(Math.max(0, stock.getStockQty() - item.getQuantity()));
+                    stockByStoreRepo.save(stock);
+                });
+            }
+        }
 
         // Clear cart
         cart.getItems().clear();
@@ -266,6 +343,8 @@ public class OrderService {
             .discountAmount(o.getDiscountAmount()).totalAmount(o.getTotalAmount())
             .voucherCode(o.getVoucherCode()).note(o.getNote())
             .cancelledReason(o.getCancelledReason())
+            .buildId(o.getBuild() != null ? o.getBuild().getId() : null)
+            .buildName(o.getBuild() != null ? o.getBuild().getName() : null)
             .createdAt(o.getCreatedAt()).confirmedAt(o.getConfirmedAt())
             .shippedAt(o.getShippedAt()).deliveredAt(o.getDeliveredAt())
             .completedAt(o.getCompletedAt()).cancelledAt(o.getCancelledAt())

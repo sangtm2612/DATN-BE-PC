@@ -4,6 +4,7 @@ import com.kinhduanpc.entity.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -17,6 +18,8 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByOrderCode(String orderCode);
+
+    boolean existsByBuildId(Long buildId);
 
     @Query("SELECT o FROM Order o WHERE o.orderCode = :code AND o.shippingPhone = :phone")
     Optional<Order> findByOrderCodeAndPhone(
@@ -47,7 +50,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findOrdersToAutoComplete(@Param("threshold") LocalDateTime threshold);
 
     @Query("""
-        SELECT SUM(o.totalAmount) FROM Order o
+        SELECT SUM(o.totalAmount - COALESCE(o.refundAmount, 0)) FROM Order o
         WHERE o.status = 'completed'
           AND o.createdAt BETWEEN :from AND :to
         """)
@@ -60,5 +63,20 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Long countByDateRange(
         @Param("from") LocalDateTime from,
         @Param("to")   LocalDateTime to
+    );
+
+    /**
+     * Cong don atomically tai tang DB (khong doc-sua-ghi o tang Java), tranh lost-update
+     * khi 2 yeu cau doi/tra cua cung don hang duoc hoan tat gan nhu dong thoi.
+     */
+    @Modifying
+    @Query("""
+        UPDATE Order o SET o.refundAmount = COALESCE(o.refundAmount, 0) + :amount, o.refundedAt = :refundedAt
+        WHERE o.id = :orderId
+        """)
+    void addRefund(
+        @Param("orderId") Long orderId,
+        @Param("amount") BigDecimal amount,
+        @Param("refundedAt") LocalDateTime refundedAt
     );
 }

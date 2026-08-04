@@ -16,6 +16,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByPhone(String phone);
     boolean existsByEmail(String email);
     boolean existsByPhone(String phone);
+    java.util.List<User> findByRole(User.UserRole role);
 
     @Query("SELECT u FROM User u WHERE u.email = :credential OR u.phone = :credential")
     Optional<User> findByEmailOrPhone(@Param("credential") String credential);

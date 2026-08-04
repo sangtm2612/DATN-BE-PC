@@ -20,6 +20,7 @@ public class CartService {
     private final CartRepository cartRepo;
     private final ProductRepository productRepo;
     private final UserRepository userRepo;
+    private final PromotionService promotionService;
 
     public CartResponse getCart(Long userId, String sessionId) {
         Cart cart = findOrCreateCart(userId, sessionId);
@@ -164,9 +165,16 @@ public class CartService {
         BigDecimal total = items.stream().map(CartItemDto::getSubtotal)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        List<PromotionService.LineItem> lineItems = cart.getItems().stream()
+            .map(i -> new PromotionService.LineItem(i.getProduct(), i.getQuantity(), i.getUnitPrice()))
+            .toList();
+        // Xem truoc gio hang: chua biet don co phai tu Build PC hay khong nen khong ap dung
+        // thuong CPU/cash bonus o day — chi tinh chinh xac luc dat hang (OrderService.createOrder).
+        BigDecimal autoDiscount = promotionService.calculateDiscount(lineItems, total, null).getDiscountAmount();
+
         return CartResponse.builder().items(items)
             .totalItems(items.stream().mapToInt(CartItemDto::getQuantity).sum())
-            .totalAmount(total).build();
+            .totalAmount(total).autoDiscount(autoDiscount).build();
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -174,6 +182,7 @@ public class CartService {
         private List<CartItemDto> items;
         private int totalItems;
         private BigDecimal totalAmount;
+        private BigDecimal autoDiscount;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor

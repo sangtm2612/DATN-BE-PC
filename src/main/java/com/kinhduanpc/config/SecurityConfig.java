@@ -48,12 +48,19 @@ public class SecurityConfig {
                     "/auth/verify-email", "/auth/resend-otp").permitAll()
                 .requestMatchers(HttpMethod.GET,
                     "/products/**", "/categories/**", "/brands/**", "/tags/**",
-                    "/banners/**", "/stores/**", "/blog/**",
+                    "/banners/**", "/blog/**",
                     "/search/**", "/home/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/track").permitAll()
                 .requestMatchers(HttpMethod.GET, "/warranties/lookup").permitAll()
                 .requestMatchers("/files/**").permitAll()
                 .requestMatchers("/cart/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/build-pc/component-types", "/build-pc/components").permitAll()
+                .requestMatchers(HttpMethod.POST, "/build-pc/check-compatibility").permitAll()
+                .requestMatchers(HttpMethod.GET, "/promotions/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/shipping-methods").permitAll()
+                // Store stock (noi bo, phai khai bao TRUOC quy tac GET /stores/** permitAll ben duoi)
+                .requestMatchers("/stores/*/stock", "/stores/*/stock/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers(HttpMethod.GET, "/stores/**").permitAll()
                 // Admin-only
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/products/**").hasAnyRole("ADMIN", "STAFF")
@@ -61,6 +68,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ADMIN")
                 .requestMatchers("/promotions/**").hasRole("ADMIN")
                 .requestMatchers("/vouchers/**").hasRole("ADMIN")
+                .requestMatchers("/shipping-methods/**").hasRole("ADMIN")
                 // Authenticated users
                 .anyRequest().authenticated()
             )
