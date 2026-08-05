@@ -1,6 +1,7 @@
 package com.kinhduanpc.service;
 
 import com.kinhduanpc.entity.Notification;
+import com.kinhduanpc.entity.Notification.NotificationType;
 import com.kinhduanpc.entity.User;
 import com.kinhduanpc.repository.NotificationRepository;
 import com.kinhduanpc.repository.UserRepository;
@@ -23,8 +24,16 @@ public class NotificationService {
     public void createNotification(Long userId, String type, String title,
                                     String message, String refType, Long refId) {
         userRepo.findById(userId).ifPresent(user -> {
+            // Convert String to enum
+            NotificationType notificationType;
+            try {
+                notificationType = NotificationType.valueOf(type);
+            } catch (IllegalArgumentException e) {
+                notificationType = NotificationType.system; // Default fallback
+            }
+            
             Notification n = Notification.builder()
-                .user(user).type(type).title(title).message(message)
+                .user(user).type(notificationType).title(title).message(message)
                 .referenceType(refType).referenceId(refId).isRead(false)
                 .build();
             notificationRepo.save(n);

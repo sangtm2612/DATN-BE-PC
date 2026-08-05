@@ -20,21 +20,21 @@ public class OrderScheduler {
     private final UserTokenRepository tokenRepo;
 
     /** Mỗi 30 phút — tự động hủy đơn COD quá hạn */
-    @Scheduled(fixedDelay = 30 * 60 * 1000)
+//    @Scheduled(fixedDelay = 30 * 60 * 1000)
     public void autoCancelOrders() {
         log.debug("Running auto-cancel orders job");
         adminService.autoCancelExpiredOrders();
     }
 
     /** Mỗi 1 giờ — tự động hoàn thành đơn đã giao 7 ngày */
-    @Scheduled(fixedDelay = 60 * 60 * 1000)
+//    @Scheduled(fixedDelay = 60 * 60 * 1000)
     public void autoCompleteOrders() {
         log.debug("Running auto-complete orders job");
         adminService.autoCompleteDeliveredOrders();
     }
 
     /** Hàng ngày lúc 2h sáng — dọn dẹp giỏ hàng và token hết hạn */
-    @Scheduled(cron = "0 0 2 * * *")
+//    @Scheduled(cron = "0 0 2 * * *")
     public void cleanup() {
         log.info("Running daily cleanup job");
         cartRepo.deleteExpiredGuestCarts(LocalDateTime.now());

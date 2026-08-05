@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: ${PORT:8080}
   servlet:
     context-path: /api
@@ -32,7 +32,7 @@ spring:
         default_schema: public
 
   liquibase:
-    enabled: false
+    enabled: true  # Bật lại sau khi đã reset database
     change-log: classpath:db/changelog/db.changelog-master.xml
     default-schema: public
     contexts: dev
@@ -40,8 +40,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${MAIL_USERNAME:your-email@gmail.com}
-    password: ${MAIL_PASSWORD:your-app-password}
+    username: ${MAIL_USERNAME:sangtm2612@gmail.com}
+    password: ${MAIL_PASSWORD:dwvakakrlypvtmrx}
     properties:
       mail:
         smtp:
@@ -54,18 +54,20 @@ spring:
       max-file-size: 10MB
       max-request-size: 50MB
 
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
-            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
-            scope: email, profile
-          facebook:
-            client-id: ${FACEBOOK_CLIENT_ID:your-fb-client-id}
-            client-secret: ${FACEBOOK_CLIENT_SECRET:your-fb-client-secret}
-            scope: email, public_profile
+  # OAuth2 Social Login (Google, Facebook)
+  # Bỏ comment nếu muốn dùng đăng nhập bằng tài khoản Google/Facebook
+  # security:
+  #   oauth2:
+  #     client:
+  #       registration:
+  #         google:
+  #           client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+  #           client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+  #           scope: email, profile
+  #         facebook:
+  #           client-id: ${FACEBOOK_CLIENT_ID:your-fb-client-id}
+  #           client-secret: ${FACEBOOK_CLIENT_SECRET:your-fb-client-secret}
+  #           scope: email, public_profile
 
 # JWT Configuration
 jwt:
@@ -80,7 +82,7 @@ file:
 
 # App config
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:3001}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
   otp:
     expiry-minutes: 5
     max-resend-per-hour: 3
@@ -88,6 +90,17 @@ app:
     auto-cancel-hours: 48
     auto-complete-days: 7
     return-deadline-days: 15
+
+# VNPay Configuration
+vnpay:
+  tmn-code: ${VNPAY_TMN_CODE:HATE553R}
+  hash-secret: ${VNPAY_HASH_SECRET:OTQGGTLXTCVZQZQMYCSGABGURQGDVKQE}
+  url: ${VNPAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+  return-url: ${VNPAY_RETURN_URL:http://localhost:8080/api/payments/vnpay/return}
+  version: "2.1.0"
+  command: "pay"
+  order-type: "other"
+  locale: "vn"
 
 # Springdoc OpenAPI
 springdoc:

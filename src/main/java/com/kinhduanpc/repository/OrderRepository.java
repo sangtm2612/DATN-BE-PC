@@ -19,6 +19,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByOrderCode(String orderCode);
 
+    List<Order> findTop1ByOrderCodeStartingWithOrderByOrderCodeDesc(String prefix);
+
     boolean existsByBuildId(Long buildId);
 
     @Query("SELECT o FROM Order o WHERE o.orderCode = :code AND o.shippingPhone = :phone")

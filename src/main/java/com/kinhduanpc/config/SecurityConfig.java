@@ -58,6 +58,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/build-pc/check-compatibility").permitAll()
                 .requestMatchers(HttpMethod.GET, "/promotions/active").permitAll()
                 .requestMatchers(HttpMethod.GET, "/shipping-methods").permitAll()
+                // VNPay payment endpoints
+                .requestMatchers("/payments/vnpay/ipn", "/payments/vnpay/return").permitAll()
+                .requestMatchers(HttpMethod.POST, "/payments/vnpay/create").authenticated()
                 // Store stock (noi bo, phai khai bao TRUOC quy tac GET /stores/** permitAll ben duoi)
                 .requestMatchers("/stores/*/stock", "/stores/*/stock/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.GET, "/stores/**").permitAll()
