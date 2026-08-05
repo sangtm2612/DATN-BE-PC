@@ -75,4 +75,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>,
 
     @Query("SELECT p FROM Product p WHERE p.stockQty <= p.lowStockThreshold AND p.isActive = true")
     List<Product> findLowStockProducts();
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.stockQty <= p.lowStockThreshold AND p.isActive = true")
+    long countLowStockProducts();
 }

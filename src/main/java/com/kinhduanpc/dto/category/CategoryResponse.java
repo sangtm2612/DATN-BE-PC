@@ -30,9 +30,7 @@ public class CategoryResponse {
         dto.setDescription(c.getDescription());
         dto.setSortOrder(c.getSortOrder());
         dto.setIsActive(c.getIsActive());
-        // parentId — tránh load lazy nếu chưa init
-        dto.setParentId(null); // set thủ công nếu cần
-        // children — chỉ 1 level sâu để tránh N+1
+        dto.setParentId(c.getParent() != null ? c.getParent().getId() : null);
         if (c.getChildren() != null && !c.getChildren().isEmpty()) {
             dto.setChildren(c.getChildren().stream()
                 .map(CategoryResponse::fromFlat)
@@ -53,6 +51,7 @@ public class CategoryResponse {
         dto.setImageUrl(c.getImageUrl());
         dto.setSortOrder(c.getSortOrder());
         dto.setIsActive(c.getIsActive());
+        dto.setParentId(c.getParent() != null ? c.getParent().getId() : null);
         dto.setChildren(List.of());
         return dto;
     }

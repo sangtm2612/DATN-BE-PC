@@ -65,6 +65,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         @Param("to")   LocalDateTime to
     );
 
+    List<Order> findByStatusAndCreatedAtBetween(
+        Order.OrderStatus status,
+        LocalDateTime from,
+        LocalDateTime to
+    );
+
     /**
      * Cong don atomically tai tang DB (khong doc-sua-ghi o tang Java), tranh lost-update
      * khi 2 yeu cau doi/tra cua cung don hang duoc hoan tat gan nhu dong thoi.

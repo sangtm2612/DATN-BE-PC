@@ -3,10 +3,13 @@ package com.kinhduanpc.controller;
 import com.kinhduanpc.dto.ApiResponse;
 import com.kinhduanpc.dto.pcbuild.CompatibilityCheckRequest;
 import com.kinhduanpc.dto.pcbuild.CompatibilityCheckResponse;
+import com.kinhduanpc.dto.pcbuild.ComponentTypeResponse;
 import com.kinhduanpc.dto.pcbuild.PcBuildRequest;
 import com.kinhduanpc.dto.pcbuild.PcBuildResponse;
+import com.kinhduanpc.entity.Category;
 import com.kinhduanpc.entity.PcComponent;
 import com.kinhduanpc.entity.PcComponentType;
+import com.kinhduanpc.repository.CategoryRepository;
 import com.kinhduanpc.repository.PcComponentRepository;
 import com.kinhduanpc.repository.PcComponentTypeRepository;
 import com.kinhduanpc.service.PcBuildService;
@@ -19,6 +22,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/build-pc")
@@ -29,12 +34,29 @@ public class BuildPcController {
     private final PcComponentTypeRepository componentTypeRepo;
     private final PcComponentRepository componentRepo;
     private final PcBuildService pcBuildService;
+    private final CategoryRepository categoryRepo;
 
     @GetMapping("/component-types")
-    public ResponseEntity<ApiResponse<List<PcComponentType>>> getComponentTypes() {
-        return ResponseEntity.ok(ApiResponse.success(
-            componentTypeRepo.findAllByOrderBySortOrderAsc()
-        ));
+    public ResponseEntity<ApiResponse<List<ComponentTypeResponse>>> getComponentTypes() {
+        List<PcComponentType> types = componentTypeRepo.findAllByOrderBySortOrderAsc();
+
+        // pc_component_types.slug và categories.slug trùng nhau theo thiết kế
+        // (vd. "man-hinh", "cpu", "ram") — dùng để tra categoryId cho việc lọc sản phẩm.
+        Map<String, Long> categoryIdBySlug = categoryRepo.findAll().stream()
+            .collect(Collectors.toMap(Category::getSlug, Category::getId, (a, b) -> a));
+
+        List<ComponentTypeResponse> result = types.stream()
+            .map(t -> ComponentTypeResponse.builder()
+                .id(t.getId())
+                .name(t.getName())
+                .slug(t.getSlug())
+                .categoryId(categoryIdBySlug.get(t.getSlug()))
+                .isRequired(t.getIsRequired())
+                .sortOrder(t.getSortOrder())
+                .build())
+            .toList();
+
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     @GetMapping("/components")

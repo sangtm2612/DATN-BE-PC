@@ -1,6 +1,7 @@
 package com.kinhduanpc.controller;
 
 import com.kinhduanpc.dto.ApiResponse;
+import com.kinhduanpc.dto.admin.RevenuePointResponse;
 import com.kinhduanpc.dto.product.ProductResponse;
 import com.kinhduanpc.repository.ProductRepository;
 import com.kinhduanpc.service.AdminService;
@@ -29,6 +30,12 @@ public class AdminController {
     @GetMapping("/stats")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
         return ResponseEntity.ok(ApiResponse.success(adminService.getDashboardStats()));
+    }
+
+    @GetMapping("/revenue-chart")
+    public ResponseEntity<ApiResponse<List<RevenuePointResponse>>> getRevenueChart(
+            @RequestParam(defaultValue = "month") String period) {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getRevenueChart(period)));
     }
 
     @GetMapping("/products/low-stock")

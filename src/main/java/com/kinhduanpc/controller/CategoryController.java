@@ -30,6 +30,19 @@ public class CategoryController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    /**
+     * Trả về toàn bộ cây danh mục (kể cả cấp con, lồng nhiều tầng).
+     * Dùng cho màn hình admin (chọn danh mục khi tạo/sửa sản phẩm) muốn hiển thị dạng tree.
+     */
+    @GetMapping("/tree")
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getTree() {
+        List<CategoryResponse> result = categoryRepo.findRootCategories()
+            .stream()
+            .map(CategoryResponse::from)
+            .toList();
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     @GetMapping("/{slug}")
     public ResponseEntity<ApiResponse<CategoryResponse>> getBySlug(@PathVariable String slug) {
         Category c = categoryRepo.findBySlug(slug)
