@@ -11,6 +11,15 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Notification {
 
+    public enum NotificationType {
+        order_update,
+        promotion,
+        warranty_expiry,
+        service_update,
+        return_update,
+        system
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -19,8 +28,9 @@ public class Notification {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "notification_type")
-    private String type; // order_update, promotion, warranty_expiry, service_update, system
+    private NotificationType type;
 
     @Column(nullable = false, length = 200)
     private String title;

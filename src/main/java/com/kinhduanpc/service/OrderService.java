@@ -14,7 +14,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -37,8 +36,6 @@ public class OrderService {
     private final NotificationService notificationService;
 
     private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
-
-    private static final AtomicInteger sequence = new AtomicInteger(1);
 
     public OrderResponse createOrder(Long userId, CreateOrderRequest req) {
         User user = userRepo.findById(userId)
@@ -328,7 +325,20 @@ public class OrderService {
 
     private String generateOrderCode() {
         String year = String.valueOf(LocalDateTime.now().getYear());
-        return "HC-" + year + "-" + String.format("%06d", sequence.getAndIncrement());
+        
+        // Query last order code in current year
+        String prefix = "HC-" + year + "-";
+        List<Order> lastOrders = orderRepo.findTop1ByOrderCodeStartingWithOrderByOrderCodeDesc(prefix);
+        
+        int nextNumber = 1;
+        if (!lastOrders.isEmpty()) {
+            String lastCode = lastOrders.get(0).getOrderCode();
+            // Extract number from "HC-2026-000001"
+            String numberPart = lastCode.substring(lastCode.lastIndexOf('-') + 1);
+            nextNumber = Integer.parseInt(numberPart) + 1;
+        }
+        
+        return prefix + String.format("%06d", nextNumber);
     }
 
     public OrderResponse toResponse(Order o) {
