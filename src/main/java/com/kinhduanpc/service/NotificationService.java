@@ -1,5 +1,6 @@
 package com.kinhduanpc.service;
 
+import com.kinhduanpc.dto.NotificationDTO;
 import com.kinhduanpc.entity.Notification;
 import com.kinhduanpc.entity.Notification.NotificationType;
 import com.kinhduanpc.entity.User;
@@ -40,15 +41,33 @@ public class NotificationService {
         });
     }
 
-    public Page<Notification> getUserNotifications(Long userId, int page, int size) {
-        return notificationRepo.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(page, size));
+    @Transactional(readOnly = true)
+    public Page<NotificationDTO> getUserNotifications(Long userId, int page, int size) {
+        Page<Notification> notifications = notificationRepo.findByUserIdOrderByCreatedAtDesc(
+                userId, PageRequest.of(page, size));
+        return notifications.map(this::toDTO);
     }
 
+    @Transactional(readOnly = true)
     public long getUnreadCount(Long userId) {
         return notificationRepo.countByUserIdAndIsReadFalse(userId);
     }
 
     public void markAllRead(Long userId) {
         notificationRepo.markAllAsRead(userId);
+    }
+
+    private NotificationDTO toDTO(Notification notification) {
+        return NotificationDTO.builder()
+                .id(notification.getId())
+                .type(notification.getType().name())
+                .title(notification.getTitle())
+                .message(notification.getMessage())
+                .linkUrl(notification.getLinkUrl())
+                .referenceType(notification.getReferenceType())
+                .referenceId(notification.getReferenceId())
+                .isRead(notification.getIsRead())
+                .createdAt(notification.getCreatedAt())
+                .build();
     }
 }

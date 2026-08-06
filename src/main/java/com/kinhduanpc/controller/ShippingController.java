@@ -1,10 +1,11 @@
 package com.kinhduanpc.controller;
 
 import com.kinhduanpc.dto.ApiResponse;
-import com.kinhduanpc.entity.ShippingMethod;
-import com.kinhduanpc.exception.AppException;
-import com.kinhduanpc.repository.ShippingMethodRepository;
+import com.kinhduanpc.dto.ShippingMethodDTO;
+import com.kinhduanpc.dto.ShippingMethodRequest;
+import com.kinhduanpc.service.ShippingService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,43 +20,39 @@ import java.util.List;
 @Tag(name = "Shipping", description = "Phương thức giao hàng")
 public class ShippingController {
 
-    private final ShippingMethodRepository shippingMethodRepo;
+    private final ShippingService shippingService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<ShippingMethod>>> getActive() {
-        return ResponseEntity.ok(ApiResponse.success(shippingMethodRepo.findByIsActiveTrue()));
+    public ResponseEntity<ApiResponse<List<ShippingMethodDTO>>> getActive() {
+        return ResponseEntity.ok(ApiResponse.success(shippingService.getActiveMethods()));
     }
 
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<List<ShippingMethod>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(shippingMethodRepo.findAll()));
+    public ResponseEntity<ApiResponse<List<ShippingMethodDTO>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.success(shippingService.getAllMethods()));
     }
 
     @PostMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ShippingMethod>> create(@RequestBody ShippingMethod method) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(shippingMethodRepo.save(method)));
+    public ResponseEntity<ApiResponse<ShippingMethodDTO>> create(
+            @Valid @RequestBody ShippingMethodRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResponse.success(shippingService.create(request)));
     }
 
     @PutMapping("/admin/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ShippingMethod>> update(@PathVariable Long id, @RequestBody ShippingMethod req) {
-        ShippingMethod m = shippingMethodRepo.findById(id).orElseThrow(() -> AppException.notFound("Phương thức giao hàng"));
-        m.setName(req.getName());
-        m.setDescription(req.getDescription());
-        m.setBaseFee(req.getBaseFee());
-        m.setFreeThreshold(req.getFreeThreshold());
-        m.setEstimatedDays(req.getEstimatedDays());
-        m.setIsActive(req.getIsActive());
-        return ResponseEntity.ok(ApiResponse.success(shippingMethodRepo.save(m)));
+    public ResponseEntity<ApiResponse<ShippingMethodDTO>> update(
+            @PathVariable Long id, 
+            @Valid @RequestBody ShippingMethodRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(shippingService.update(id, request)));
     }
 
     @DeleteMapping("/admin/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        if (!shippingMethodRepo.existsById(id)) throw AppException.notFound("Phương thức giao hàng");
-        shippingMethodRepo.deleteById(id);
+        shippingService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa phương thức giao hàng"));
     }
 }

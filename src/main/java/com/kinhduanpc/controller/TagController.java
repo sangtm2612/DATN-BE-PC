@@ -1,10 +1,11 @@
 package com.kinhduanpc.controller;
 
 import com.kinhduanpc.dto.ApiResponse;
-import com.kinhduanpc.entity.Tag;
-import com.kinhduanpc.exception.AppException;
-import com.kinhduanpc.repository.TagRepository;
+import com.kinhduanpc.dto.TagDTO;
+import com.kinhduanpc.dto.TagRequest;
+import com.kinhduanpc.service.TagService;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,43 +20,21 @@ import java.util.List;
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Tags", description = "Tag sản phẩm")
 public class TagController {
 
-    private final TagRepository tagRepo;
+    private final TagService tagService;
 
     @GetMapping
-    @Operation(summary = "Danh sách tag, ho tro tim kiem qua ?search=")
-    public ResponseEntity<ApiResponse<List<Tag>>> getAll(
+    @Operation(summary = "Danh sách tag, hỗ trợ tìm kiếm qua ?search=")
+    public ResponseEntity<ApiResponse<List<TagDTO>>> getAll(
             @RequestParam(required = false) String search) {
-        List<Tag> tags = (search == null || search.isBlank())
-            ? tagRepo.findAll()
-            : tagRepo.findByNameContainingIgnoreCase(search);
-        return ResponseEntity.ok(ApiResponse.success(tags));
+        return ResponseEntity.ok(ApiResponse.success(tagService.findAll(search)));
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @Operation(summary = "Tạo tag mới (Admin/Staff)")
-    public ResponseEntity<ApiResponse<Tag>> create(@RequestBody(required = false) Tag req) {
-        if (req == null || req.getName() == null || req.getName().isBlank()) {
-            throw AppException.badRequest("MISSING_NAME", "Vui lòng nhập tên tag");
-        }
-        String slug = generateSlug(req.getName());
-        Tag tag = Tag.builder().name(req.getName()).slug(slug).build();
+    public ResponseEntity<ApiResponse<TagDTO>> create(
+            @Valid @RequestBody TagRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(ApiResponse.success(tagRepo.save(tag), "Tạo tag thành công"));
-    }
-
-    private String generateSlug(String name) {
-        String slug = name.toLowerCase()
-            .replaceAll("[àáâãäå]", "a").replaceAll("[èéêë]", "e")
-            .replaceAll("[ìíîï]", "i").replaceAll("[òóôõö]", "o")
-            .replaceAll("[ùúûü]", "u").replaceAll("[ý]", "y")
-            .replaceAll("[^a-z0-9\\s-]", "").replaceAll("\\s+", "-")
-            .replaceAll("-+", "-").trim();
-        String base = slug;
-        int i = 1;
-        while (tagRepo.existsBySlug(slug)) {
-            slug = base + "-" + i++;
-        }
-        return slug;
+            .body(ApiResponse.success(tagService.create(request), "Tạo tag thành công"));
     }
 }

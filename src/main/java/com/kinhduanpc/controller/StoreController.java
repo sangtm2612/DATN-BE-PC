@@ -1,15 +1,12 @@
 package com.kinhduanpc.controller;
 
 import com.kinhduanpc.dto.ApiResponse;
-import com.kinhduanpc.entity.Product;
-import com.kinhduanpc.entity.ProductStockByStore;
-import com.kinhduanpc.entity.ProductStockByStoreId;
-import com.kinhduanpc.entity.Store;
-import com.kinhduanpc.exception.AppException;
-import com.kinhduanpc.repository.ProductRepository;
-import com.kinhduanpc.repository.ProductStockByStoreRepository;
-import com.kinhduanpc.repository.StoreRepository;
+import com.kinhduanpc.dto.ProductStockByStoreDTO;
+import com.kinhduanpc.dto.StoreDTO;
+import com.kinhduanpc.dto.StoreRequest;
+import com.kinhduanpc.service.StoreService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,59 +20,46 @@ import java.util.List;
 @Tag(name = "Stores", description = "Hệ thống showroom")
 public class StoreController {
 
-    private final StoreRepository storeRepo;
-    private final ProductStockByStoreRepository stockRepo;
-    private final ProductRepository productRepo;
+    private final StoreService storeService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Store>>> getAll(
+    public ResponseEntity<ApiResponse<List<StoreDTO>>> getAll(
             @RequestParam(required = false) String province) {
-        List<Store> stores = province != null
-            ? storeRepo.findByProvinceAndIsActiveTrue(province)
-            : storeRepo.findByIsActiveTrueOrderByProvinceAscNameAsc();
-        return ResponseEntity.ok(ApiResponse.success(stores));
+        return ResponseEntity.ok(ApiResponse.success(storeService.findAll(province)));
     }
 
     @GetMapping("/{slug}")
-    public ResponseEntity<ApiResponse<Store>> getBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(ApiResponse.success(
-            storeRepo.findBySlug(slug).orElseThrow(() -> AppException.notFound("Cửa hàng"))));
+    public ResponseEntity<ApiResponse<StoreDTO>> getBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(ApiResponse.success(storeService.findBySlug(slug)));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Store>> create(@RequestBody Store store) {
-        return ResponseEntity.ok(ApiResponse.success(storeRepo.save(store)));
+    public ResponseEntity<ApiResponse<StoreDTO>> create(@Valid @RequestBody StoreRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(storeService.create(request)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Store>> update(@PathVariable Long id, @RequestBody Store req) {
-        Store s = storeRepo.findById(id).orElseThrow(() -> AppException.notFound("Cửa hàng"));
-        s.setName(req.getName()); s.setAddress(req.getAddress());
-        s.setPhone(req.getPhone()); s.setEmail(req.getEmail());
-        s.setOpenHours(req.getOpenHours()); s.setGoogleMapsUrl(req.getGoogleMapsUrl());
-        return ResponseEntity.ok(ApiResponse.success(storeRepo.save(s)));
+    public ResponseEntity<ApiResponse<StoreDTO>> update(
+            @PathVariable Long id, 
+            @Valid @RequestBody StoreRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(storeService.update(id, request)));
     }
 
     @GetMapping("/{id}/stock")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<List<ProductStockByStore>>> getStock(@PathVariable Long id) {
-        if (!storeRepo.existsById(id)) throw AppException.notFound("Cửa hàng");
-        return ResponseEntity.ok(ApiResponse.success(stockRepo.findByStoreId(id)));
+    public ResponseEntity<ApiResponse<List<ProductStockByStoreDTO>>> getStock(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(storeService.getStockByStore(id)));
     }
 
     @PutMapping("/{id}/stock/{productId}")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<ProductStockByStore>> updateStock(
-            @PathVariable Long id, @PathVariable Long productId, @RequestParam int quantity) {
-        Store store = storeRepo.findById(id).orElseThrow(() -> AppException.notFound("Cửa hàng"));
-        Product product = productRepo.findById(productId).orElseThrow(() -> AppException.notFound("Sản phẩm"));
-
-        ProductStockByStoreId key = new ProductStockByStoreId(productId, id);
-        ProductStockByStore stock = stockRepo.findById(key)
-            .orElse(ProductStockByStore.builder().product(product).store(store).build());
-        stock.setStockQty(Math.max(0, quantity));
-        return ResponseEntity.ok(ApiResponse.success(stockRepo.save(stock)));
+    public ResponseEntity<ApiResponse<ProductStockByStoreDTO>> updateStock(
+            @PathVariable Long id, 
+            @PathVariable Long productId, 
+            @RequestParam int quantity) {
+        return ResponseEntity.ok(ApiResponse.success(
+            storeService.updateStock(id, productId, quantity)));
     }
 }

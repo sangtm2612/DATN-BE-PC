@@ -1,7 +1,7 @@
 package com.kinhduanpc.controller;
 
 import com.kinhduanpc.dto.ApiResponse;
-import com.kinhduanpc.entity.Notification;
+import com.kinhduanpc.dto.NotificationDTO;
 import com.kinhduanpc.service.NotificationService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,21 +22,21 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Notification>>> getAll(
+    public ResponseEntity<ApiResponse<List<NotificationDTO>>> getAll(
             Authentication auth,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Long userId = (Long) auth.getPrincipal();
-        Page<Notification> result = notificationService.getUserNotifications(userId, page, size);
+        Page<NotificationDTO> result = notificationService.getUserNotifications(userId, page, size);
         return ResponseEntity.ok(ApiResponse.success(result.getContent(),
-            new ApiResponse.PageMeta(page, size, result.getTotalElements(), result.getTotalPages())));
+                new ApiResponse.PageMeta(page, size, result.getTotalElements(), result.getTotalPages())));
     }
 
     @GetMapping("/unread-count")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getUnreadCount(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ResponseEntity.ok(ApiResponse.success(
-            Map.of("count", notificationService.getUnreadCount(userId))));
+                Map.of("count", notificationService.getUnreadCount(userId))));
     }
 
     @PostMapping("/read-all")

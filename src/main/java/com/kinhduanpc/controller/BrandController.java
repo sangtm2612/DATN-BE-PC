@@ -1,10 +1,11 @@
 package com.kinhduanpc.controller;
 
 import com.kinhduanpc.dto.ApiResponse;
-import com.kinhduanpc.entity.Brand;
-import com.kinhduanpc.exception.AppException;
-import com.kinhduanpc.repository.BrandRepository;
+import com.kinhduanpc.dto.BrandDTO;
+import com.kinhduanpc.dto.BrandRequest;
+import com.kinhduanpc.service.BrandService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,41 +19,36 @@ import java.util.List;
 @Tag(name = "Brands", description = "Thương hiệu")
 public class BrandController {
 
-    private final BrandRepository brandRepo;
+    private final BrandService brandService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Brand>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(brandRepo.findByIsActiveTrueOrderByNameAsc()));
+    public ResponseEntity<ApiResponse<List<BrandDTO>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.success(brandService.findAll()));
     }
 
     @GetMapping("/{slug}")
-    public ResponseEntity<ApiResponse<Brand>> getBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(ApiResponse.success(
-            brandRepo.findBySlug(slug).orElseThrow(() -> AppException.notFound("Thương hiệu"))));
+    public ResponseEntity<ApiResponse<BrandDTO>> getBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(ApiResponse.success(brandService.findBySlug(slug)));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Brand>> create(@RequestBody Brand brand) {
-        return ResponseEntity.ok(ApiResponse.success(brandRepo.save(brand)));
+    public ResponseEntity<ApiResponse<BrandDTO>> create(@Valid @RequestBody BrandRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(brandService.create(request)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Brand>> update(@PathVariable Long id, @RequestBody Brand req) {
-        Brand b = brandRepo.findById(id).orElseThrow(() -> AppException.notFound("Thương hiệu"));
-        b.setName(req.getName());
-        b.setLogoUrl(req.getLogoUrl());
-        b.setWebsite(req.getWebsite());
-        b.setDescription(req.getDescription());
-        b.setIsActive(req.getIsActive());
-        return ResponseEntity.ok(ApiResponse.success(brandRepo.save(b)));
+    public ResponseEntity<ApiResponse<BrandDTO>> update(
+            @PathVariable Long id, 
+            @Valid @RequestBody BrandRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(brandService.update(id, request)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        brandRepo.deleteById(id);
+        brandService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Đã xóa thương hiệu"));
     }
 }
