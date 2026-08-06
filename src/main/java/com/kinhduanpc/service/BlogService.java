@@ -69,6 +69,13 @@ public class BlogService {
         return toResponse(post);
     }
 
+    @Transactional(readOnly = true)
+    public BlogPostResponse getById(Long id) {
+        BlogPost post = blogPostRepo.findById(id)
+                .orElseThrow(() -> AppException.notFound("Bài viết"));
+        return toResponse(post);
+    }
+
     public BlogPostResponse createPost(BlogPostRequest request, Long authorId) {
         BlogCategory category = blogCategoryRepo.findById(request.getBlogCategoryId())
                 .orElseThrow(() -> AppException.notFound("Danh mục blog"));

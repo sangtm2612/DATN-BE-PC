@@ -45,6 +45,12 @@ public class BlogController {
         return ResponseEntity.ok(ApiResponse.success(blogService.getBySlug(slug)));
     }
 
+    @GetMapping("/id/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<BlogPostResponse>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(blogService.getById(id)));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<ApiResponse<BlogPostResponse>> create(
