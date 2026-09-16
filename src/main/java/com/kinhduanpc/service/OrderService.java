@@ -250,7 +250,10 @@ public class OrderService {
         
         if (recipientEmail != null) {
             // Format số tiền với dấu phân cách hàng nghìn
-            String formattedAmount = formatCurrency(totalAmount);
+            String formattedTotal = formatCurrency(totalAmount);
+            String formattedSubtotal = formatCurrency(subtotal);
+            String formattedShippingFee = formatCurrency(shippingFee);
+            String formattedDiscount = formatCurrency(discountAmount);
             
             // Prepare order items for email
             java.util.List<EmailService.OrderItemDto> emailItems = order.getItems().stream()
@@ -261,14 +264,31 @@ public class OrderService {
                 ))
                 .collect(java.util.stream.Collectors.toList());
             
+            // Build full shipping address theo chuẩn VN (bỏ District vì form chỉ dùng Province + Ward)
+            String fullAddress = String.format("%s - %s\n%s, %s, %s",
+                order.getShippingName(),
+                order.getShippingPhone(),
+                order.getShippingAddress(),
+                order.getShippingWard(),
+                order.getShippingProvince()
+            );
+            
+            // Map payment method to Vietnamese
+            String paymentMethodLabel = getPaymentMethodLabel(order.getPaymentMethod());
+            
             emailService.sendOrderConfirmation(
                 recipientEmail, 
                 recipientName,
                 order.getOrderCode(), 
-                formattedAmount, 
+                formattedTotal, 
                 recipientPhone,
                 order.getShippingPhone(),
-                emailItems
+                emailItems,
+                formattedSubtotal,
+                formattedShippingFee,
+                formattedDiscount,
+                fullAddress,
+                paymentMethodLabel
             );
         }
 
@@ -434,5 +454,19 @@ public class OrderService {
         String formatted = String.format("%,d", value).replace(',', '.');
         
         return formatted + "đ";
+    }
+
+    /**
+     * Map payment method enum to Vietnamese label
+     */
+    private String getPaymentMethodLabel(Order.PaymentMethod method) {
+        return switch (method) {
+            case cod -> "Thanh toán khi nhận hàng (COD)";
+            case bank_transfer -> "Chuyển khoản ngân hàng";
+            case vnpay -> "Thanh toán qua VNPay";
+            case momo -> "Thanh toán qua Ví MoMo";
+            case zalopay -> "Thanh toán qua ZaloPay";
+            case installment -> "Trả góp 0%";
+        };
     }
 }

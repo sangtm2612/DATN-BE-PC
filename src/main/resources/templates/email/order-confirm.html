@@ -8,7 +8,7 @@
   </div>
   
   <div style="padding:32px;">
-    <h2 style="color:#333;margin:0 0 16px;">Đặt hàng thành công! 🎉</h2>
+    <h2 style="color:#333;margin:0 0 16px;">Đặt hàng thành công!</h2>
     <p style="color:#666;margin:0 0 8px;">Xin chào <strong th:text="${name}" style="color:#333;">Khách hàng</strong>,</p>
     <p style="color:#666;margin:0 0 24px;">Cảm ơn bạn đã đặt hàng tại KinhDuanPC. Đơn hàng của bạn đã được tiếp nhận và đang được xử lý.</p>
     
@@ -23,17 +23,17 @@
           <td style="padding:8px 0;color:#666;font-size:14px;">Số điện thoại:</td>
           <td style="padding:8px 0;text-align:right;font-weight:500;color:#333;" th:text="${shippingPhone}">0901234567</td>
         </tr>
-        <tr>
-          <td colspan="2" style="padding:16px 0 8px;border-top:1px solid #e0e0e0;">
-            <span style="color:#666;font-size:14px;">Tổng thanh toán:</span>
-          </td>
-        </tr>
-        <tr>
-          <td colspan="2" style="padding:0;">
-            <p style="margin:0;font-size:28px;font-weight:bold;color:#e53935;text-align:center;" th:text="${totalAmount}">0đ</p>
-          </td>
+        <tr th:if="${paymentMethod}">
+          <td style="padding:8px 0;color:#666;font-size:14px;">Thanh toán:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:500;color:#333;" th:text="${paymentMethod}">COD</td>
         </tr>
       </table>
+    </div>
+    
+    <!-- Shipping Address -->
+    <div th:if="${shippingAddress}" style="background:#e3f2fd;border-left:4px solid #2196f3;padding:16px;border-radius:4px;margin:0 0 24px;">
+      <h3 style="color:#1976d2;font-size:14px;margin:0 0 8px;font-weight:600;">Địa chỉ giao hàng</h3>
+      <p style="margin:0;color:#333;font-size:14px;line-height:1.8;white-space:pre-line;" th:text="${shippingAddress}">Địa chỉ</p>
     </div>
     
     <!-- Products List -->
@@ -45,27 +45,65 @@
             <td style="padding:12px 0;">
               <div style="font-weight:500;color:#333;font-size:14px;" th:text="${item.productName}">Sản phẩm</div>
               <div style="color:#999;font-size:12px;margin-top:4px;">
-                <span>Số lượng: </span>
+                <span>SL: </span>
                 <span th:text="${item.quantity}">1</span>
               </div>
             </td>
-            <td style="padding:12px 0;text-align:right;font-weight:600;color:#e53935;white-space:nowrap;" th:text="${item.price}">0đ</td>
+            <td style="padding:12px 0;text-align:right;font-weight:600;color:#333;white-space:nowrap;" th:text="${item.price}">0đ</td>
           </tr>
         </table>
       </div>
     </div>
     
+    <!-- Order Summary -->
+    <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:0 0 24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr th:if="${subtotal}">
+          <td style="padding:8px 0;color:#666;font-size:14px;">Tạm tính:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:500;color:#333;" th:text="${subtotal}">0đ</td>
+        </tr>
+        <tr th:if="${shippingFee}">
+          <td style="padding:8px 0;color:#666;font-size:14px;">Phí vận chuyển:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:500;color:#333;" th:text="${shippingFee}">0đ</td>
+        </tr>
+        <tr th:if="${discount != null and discount != '0đ'}">
+          <td style="padding:8px 0;color:#4caf50;font-size:14px;">Giảm giá:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:500;color:#4caf50;">
+            <span>-</span><span th:text="${discount}">0đ</span>
+          </td>
+        </tr>
+        <tr style="border-top:2px solid #ddd;">
+          <td style="padding:16px 0 0;color:#333;font-size:16px;font-weight:600;">Tổng thanh toán:</td>
+          <td style="padding:16px 0 0;text-align:right;">
+            <span style="font-size:24px;font-weight:bold;color:#e53935;" th:text="${totalAmount}">0đ</span>
+          </td>
+        </tr>
+      </table>
+    </div>
+    
     <!-- CTA Button -->
     <a th:href="${orderLink}" style="display:block;text-align:center;background:#e53935;color:#fff;padding:16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;margin:0 0 16px;">
-      <span th:if="${isGuest}">🔍 Tra cứu đơn hàng</span>
-      <span th:unless="${isGuest}">📦 Xem chi tiết đơn hàng</span>
+      <span th:if="${isGuest}">Tra cứu đơn hàng</span>
+      <span th:unless="${isGuest}">Xem chi tiết đơn hàng</span>
     </a>
     
     <!-- Guest Note -->
     <div th:if="${isGuest}" style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;border-radius:4px;margin:0 0 16px;">
       <p style="margin:0;color:#856404;font-size:13px;line-height:1.5;">
-        <strong>📌 Lưu ý:</strong> Bạn có thể tra cứu đơn hàng bất kỳ lúc nào bằng mã đơn hàng và số điện thoại. 
+        <strong>Lưu ý:</strong> Bạn có thể tra cứu đơn hàng bất kỳ lúc nào bằng mã đơn hàng và số điện thoại. 
         Hoặc nhấn vào nút bên trên để xem chi tiết ngay.
+      </p>
+    </div>
+    
+    <!-- Delivery Info -->
+    <div style="background:#e8f5e9;border-left:4px solid #4caf50;padding:12px 16px;border-radius:4px;margin:0 0 16px;">
+      <p style="margin:0 0 8px;color:#2e7d32;font-size:13px;line-height:1.5;">
+        <strong>Thời gian giao hàng dự kiến:</strong>
+      </p>
+      <p style="margin:0;color:#2e7d32;font-size:13px;line-height:1.5;">
+        • Nội thành: 1-2 ngày làm việc<br/>
+        • Ngoại thành: 3-5 ngày làm việc<br/>
+        • Tỉnh/thành khác: 5-7 ngày làm việc
       </p>
     </div>
     
@@ -73,7 +111,7 @@
     <div style="text-align:center;padding:16px 0;border-top:1px solid #e0e0e0;">
       <p style="color:#666;font-size:13px;margin:0 0 8px;">Cần hỗ trợ? Liên hệ với chúng tôi:</p>
       <p style="margin:0;">
-        <a href="tel:19001903" style="color:#e53935;text-decoration:none;font-weight:600;font-size:18px;">📞 1900 1903</a>
+        <a href="tel:19001903" style="color:#e53935;text-decoration:none;font-weight:600;font-size:18px;">Hotline: 1900 1903</a>
       </p>
     </div>
   </div>

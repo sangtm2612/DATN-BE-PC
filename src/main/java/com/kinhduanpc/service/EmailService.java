@@ -57,17 +57,19 @@ public class EmailService {
 
     @Async
     public void sendOrderConfirmation(String to, String name, String orderCode, String totalAmount) {
-        sendOrderConfirmation(to, name, orderCode, totalAmount, null, null, null);
+        sendOrderConfirmation(to, name, orderCode, totalAmount, null, null, null, null, null, null, null, null);
     }
 
     @Async
     public void sendOrderConfirmation(String to, String name, String orderCode, String totalAmount, String phone) {
-        sendOrderConfirmation(to, name, orderCode, totalAmount, phone, null, null);
+        sendOrderConfirmation(to, name, orderCode, totalAmount, phone, null, null, null, null, null, null, null);
     }
 
     @Async
     public void sendOrderConfirmation(String to, String name, String orderCode, String totalAmount, 
-                                      String phone, String shippingPhone, java.util.List<OrderItemDto> items) {
+                                      String phone, String shippingPhone, java.util.List<OrderItemDto> items,
+                                      String subtotal, String shippingFee, String discount,
+                                      String shippingAddress, String paymentMethod) {
         try {
             Context ctx = new Context();
             ctx.setVariable("name", name);
@@ -75,6 +77,11 @@ public class EmailService {
             ctx.setVariable("totalAmount", totalAmount);
             ctx.setVariable("shippingPhone", shippingPhone);
             ctx.setVariable("items", items);
+            ctx.setVariable("subtotal", subtotal);
+            ctx.setVariable("shippingFee", shippingFee);
+            ctx.setVariable("discount", discount);
+            ctx.setVariable("shippingAddress", shippingAddress);
+            ctx.setVariable("paymentMethod", paymentMethod);
             
             // Sử dụng route track order cho cả guest và user
             String orderLink = frontendUrl + "/tra-don-hang?code=" + orderCode;
