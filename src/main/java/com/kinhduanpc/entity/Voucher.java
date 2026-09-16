@@ -25,6 +25,10 @@ public class Voucher {
     private String name;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "voucher_type", nullable = false, length = 20)
+    private VoucherType voucherType = VoucherType.PUBLIC;
+
+    @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "discount_type", nullable = false, columnDefinition = "discount_type")
     private DiscountType discountType;
@@ -72,4 +76,11 @@ public class Voucher {
     }
 
     public enum DiscountType { percent, fixed_amount, free_shipping }
+    
+    /**
+     * Loại voucher:
+     * PUBLIC - Ai biết code đều dùng được
+     * PERSONAL - Chỉ user được phân phối mới dùng được
+     */
+    public enum VoucherType { PUBLIC, PERSONAL }
 }

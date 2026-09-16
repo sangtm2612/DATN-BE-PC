@@ -91,12 +91,13 @@ public class OrderController {
     // Admin/Staff endpoints
     @GetMapping("/admin/all")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    @Operation(summary = "Admin: Danh sách tất cả đơn hàng")
+    @Operation(summary = "Admin: Danh sách tất cả đơn hàng (hỗ trợ tìm kiếm)")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getAllOrders(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Page<OrderResponse> result = orderService.getUserOrders(null, status, page, size);
+        Page<OrderResponse> result = orderService.getAdminOrders(status, keyword, page, size);
         return ResponseEntity.ok(ApiResponse.success(result.getContent(),
             new ApiResponse.PageMeta(page, size, result.getTotalElements(), result.getTotalPages())));
     }

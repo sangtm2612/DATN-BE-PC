@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -30,4 +31,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying
     @Query("UPDATE User u SET u.loginAttempts = 0, u.lockedUntil = null WHERE u.id = :id")
     void resetLoginAttempts(@Param("id") Long userId);
+
+    @Query("""
+        SELECT u FROM User u
+        WHERE u.dateOfBirth IS NOT NULL
+          AND EXTRACT(MONTH FROM u.dateOfBirth) = EXTRACT(MONTH FROM CURRENT_DATE)
+          AND EXTRACT(DAY FROM u.dateOfBirth) = EXTRACT(DAY FROM CURRENT_DATE)
+          AND u.status = 'active'
+        """)
+    List<User> findUsersWithBirthdayToday();
 }

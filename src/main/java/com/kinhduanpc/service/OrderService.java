@@ -26,6 +26,7 @@ public class OrderService {
     private final ProductRepository productRepo;
     private final UserRepository userRepo;
     private final VoucherRepository voucherRepo;
+    private final VoucherService voucherService;
     private final PcBuildRepository pcBuildRepo;
     private final PromotionService promotionService;
     private final ShippingMethodRepository shippingMethodRepo;
@@ -34,6 +35,7 @@ public class OrderService {
     private final StoreRepository storeRepo;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final VoucherPolicyService voucherPolicyService;
 
     private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
@@ -85,10 +87,17 @@ public class OrderService {
             }
         }
 
-        // Voucher (nhập tay)
+        // Voucher (nhập tay) - với validation quyền sử dụng
         BigDecimal voucherDiscount = BigDecimal.ZERO;
         Voucher voucher = null;
         if (req.getVoucherCode() != null && !req.getVoucherCode().isBlank()) {
+            // Sử dụng VoucherService để check quyền (hỗ trợ cả PUBLIC và PERSONAL voucher)
+            try {
+                voucherService.checkVoucher(req.getVoucherCode(), userId);
+            } catch (Exception e) {
+                throw AppException.badRequest("VOUCHER_CHECK_FAILED", e.getMessage());
+            }
+            
             voucher = voucherRepo.findValidByCode(req.getVoucherCode(), LocalDateTime.now())
                 .orElseThrow(() -> AppException.badRequest("INVALID_VOUCHER", "Mã voucher không hợp lệ hoặc đã hết hạn"));
 
@@ -106,8 +115,7 @@ public class OrderService {
                 voucherDiscount = voucher.getDiscountValue();
             }
 
-            voucher.setUsedCount(voucher.getUsedCount() + 1);
-            voucherRepo.save(voucher);
+            // Note: Không tăng usedCount ở đây nữa, sẽ xử lý sau khi order success
         }
 
         // Khuyến mãi tự động (Promotion) — snapshot tại thời điểm đặt hàng, không dùng lại
@@ -232,6 +240,11 @@ public class OrderService {
         cart.getItems().clear();
         cartRepo.save(cart);
 
+        // Mark voucher as used (nếu có)
+        if (voucher != null && userId != null) {
+            voucherService.markVoucherAsUsed(userId, voucher.getCode(), order.getId());
+        }
+
         // Send email confirmation
         String recipientEmail = null;
         String recipientName = null;
@@ -313,7 +326,6 @@ public class OrderService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Order> orders;
         if (userId == null) {
-            // Admin: lấy tất cả
             orders = status != null
                 ? orderRepo.findAllByStatusOrderByCreatedAtDesc(Order.OrderStatus.valueOf(status), pageable)
                 : orderRepo.findAllByOrderByCreatedAtDesc(pageable);
@@ -323,6 +335,25 @@ public class OrderService {
                 : orderRepo.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         }
         return orders.map(this::toResponse);
+    }
+
+    public Page<OrderResponse> getAdminOrders(String status, String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Order.OrderStatus orderStatus = (status != null && !status.isBlank())
+            ? Order.OrderStatus.valueOf(status) : null;
+        String kw = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+
+        // Phân nhánh hoàn toàn — không bao giờ truyền null vào query có LIKE
+        // để tránh lỗi "could not determine data type" trên PostgreSQL
+        if (kw == null && orderStatus == null) {
+            return orderRepo.findAllByOrderByCreatedAtDesc(pageable).map(this::toResponse);
+        } else if (kw == null) {
+            return orderRepo.findAllByStatusOrderByCreatedAtDesc(orderStatus, pageable).map(this::toResponse);
+        } else if (orderStatus == null) {
+            return orderRepo.searchAdminOrdersByKeyword(kw, pageable).map(this::toResponse);
+        } else {
+            return orderRepo.searchAdminOrdersByStatusAndKeyword(orderStatus, kw, pageable).map(this::toResponse);
+        }
     }
 
     public OrderResponse getOrderDetail(Long orderId, Long userId) {
@@ -393,6 +424,11 @@ public class OrderService {
                 order.getUser().getFullName(), order.getOrderCode(), status);
         }
 
+        // Trigger chính sách voucher khi đơn hàng hoàn thành
+        if (newStatus == Order.OrderStatus.completed && order.getUser() != null) {
+            voucherPolicyService.onOrderCompleted(order.getUser().getId());
+        }
+
         return toResponse(order);
     }
 
@@ -415,16 +451,23 @@ public class OrderService {
     }
 
     public OrderResponse toResponse(Order o) {
+        User user = o.getUser();
         return OrderResponse.builder()
             .id(o.getId()).orderCode(o.getOrderCode())
             .status(o.getStatus().name()).paymentMethod(o.getPaymentMethod().name())
             .paymentStatus(o.getPaymentStatus().name())
+            .userId(user != null ? user.getId() : null)
+            .customerName(user != null ? user.getFullName() : o.getShippingName())
+            .customerEmail(user != null ? user.getEmail() : null)
+            .customerPhone(user != null ? user.getPhone() : o.getShippingPhone())
             .shippingName(o.getShippingName()).shippingPhone(o.getShippingPhone())
             .shippingProvince(o.getShippingProvince()).shippingDistrict(o.getShippingDistrict())
             .shippingWard(o.getShippingWard()).shippingAddress(o.getShippingAddress())
             .subtotal(o.getSubtotal()).shippingFee(o.getShippingFee())
             .discountAmount(o.getDiscountAmount()).totalAmount(o.getTotalAmount())
+            .refundAmount(o.getRefundAmount())
             .voucherCode(o.getVoucherCode()).note(o.getNote())
+            .staffNote(o.getStaffNote())
             .cancelledReason(o.getCancelledReason())
             .buildId(o.getBuild() != null ? o.getBuild().getId() : null)
             .buildName(o.getBuild() != null ? o.getBuild().getName() : null)

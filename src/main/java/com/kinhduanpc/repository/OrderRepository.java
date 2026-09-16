@@ -45,6 +45,35 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findAllByOrderByCreatedAtDesc(Pageable pageable);
     Page<Order> findAllByStatusOrderByCreatedAtDesc(Order.OrderStatus status, Pageable pageable);
 
+    @Query("""
+        SELECT o FROM Order o LEFT JOIN o.user u
+        WHERE o.orderCode LIKE CONCAT('%', :keyword, '%')
+           OR o.shippingPhone LIKE CONCAT('%', :keyword, '%')
+           OR LOWER(o.shippingName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+           OR (u.email IS NOT NULL AND LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        ORDER BY o.createdAt DESC
+        """)
+    Page<Order> searchAdminOrdersByKeyword(
+        @Param("keyword") String keyword,
+        Pageable pageable
+    );
+
+    @Query("""
+        SELECT o FROM Order o LEFT JOIN o.user u
+        WHERE o.status = :status
+          AND (o.orderCode LIKE CONCAT('%', :keyword, '%')
+               OR o.shippingPhone LIKE CONCAT('%', :keyword, '%')
+               OR LOWER(o.shippingName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+               OR (u.email IS NOT NULL AND LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          )
+        ORDER BY o.createdAt DESC
+        """)
+    Page<Order> searchAdminOrdersByStatusAndKeyword(
+        @Param("status") Order.OrderStatus status,
+        @Param("keyword") String keyword,
+        Pageable pageable
+    );
+
     @Query("SELECT o FROM Order o WHERE o.status = 'pending' AND o.autoCancelAt IS NOT NULL AND o.autoCancelAt < CURRENT_TIMESTAMP")
     List<Order> findOrdersToAutoCancel();
 
@@ -66,6 +95,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         @Param("from") LocalDateTime from,
         @Param("to")   LocalDateTime to
     );
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId AND o.status = 'completed'")
+    int countCompletedByUserId(@Param("userId") Long userId);
+
+    @Query("""
+        SELECT COALESCE(SUM(o.totalAmount - COALESCE(o.refundAmount, 0)), 0) FROM Order o
+        WHERE o.user.id = :userId AND o.status = 'completed'
+        """)
+    BigDecimal sumTotalSpentByUserId(@Param("userId") Long userId);
 
     List<Order> findByStatusAndCreatedAtBetween(
         Order.OrderStatus status,

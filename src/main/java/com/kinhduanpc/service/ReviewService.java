@@ -25,6 +25,7 @@ public class ReviewService {
     private final UserRepository userRepo;
     private final ProductRepository productRepo;
     private final ReviewHelpfulRepository reviewHelpfulRepo;
+    private final VoucherPolicyService voucherPolicyService;
 
     @Transactional(readOnly = true)
     public Page<ReviewDTO> getReviewsByProduct(Long productId, int page, int size) {
@@ -57,6 +58,10 @@ public class ReviewService {
             .build();
 
         Review saved = reviewRepo.save(review);
+
+        // Trigger chính sách voucher thưởng đánh giá
+        voucherPolicyService.onReviewCreated(userId);
+
         return toDTO(saved);
     }
 

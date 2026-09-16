@@ -3,6 +3,7 @@ package com.kinhduanpc.scheduler;
 import com.kinhduanpc.repository.CartRepository;
 import com.kinhduanpc.repository.UserTokenRepository;
 import com.kinhduanpc.service.AdminService;
+import com.kinhduanpc.service.VoucherPolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,6 +19,7 @@ public class OrderScheduler {
     private final AdminService adminService;
     private final CartRepository cartRepo;
     private final UserTokenRepository tokenRepo;
+    private final VoucherPolicyService voucherPolicyService;
 
     /** Mỗi 30 phút — tự động hủy đơn COD quá hạn */
 //    @Scheduled(fixedDelay = 30 * 60 * 1000)
@@ -39,5 +41,12 @@ public class OrderScheduler {
         log.info("Running daily cleanup job");
         cartRepo.deleteExpiredGuestCarts(LocalDateTime.now());
         tokenRepo.deleteExpiredTokens(LocalDateTime.now());
+    }
+
+    /** Hàng ngày lúc 8h sáng — phát voucher sinh nhật */
+    @Scheduled(cron = "0 0 8 * * *")
+    public void processBirthdayVouchers() {
+        log.info("Running birthday voucher distribution job");
+        voucherPolicyService.processBirthdayVouchers();
     }
 }

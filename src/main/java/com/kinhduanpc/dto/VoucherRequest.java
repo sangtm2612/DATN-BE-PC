@@ -23,14 +23,17 @@ public class VoucherRequest {
     @Positive(message = "Giá trị giảm phải > 0")
     private BigDecimal discountValue;
     
+    private String voucherType; // PUBLIC or PERSONAL
     private BigDecimal minOrderValue;
+    private BigDecimal maxDiscount;
     private Integer maxUsageCount;
-    
+    private Integer usagePerUser;
+
     @NotNull(message = "Ngày bắt đầu không được để trống")
     private LocalDateTime startDate;
-    
+
     @NotNull(message = "Ngày kết thúc không được để trống")
     private LocalDateTime endDate;
-    
+
     private Boolean isActive;
 }

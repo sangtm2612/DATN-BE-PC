@@ -19,6 +19,12 @@ public class OrderResponse {
     private String paymentMethod;
     private String paymentStatus;
 
+    // Thông tin khách hàng
+    private Long userId;
+    private String customerName;
+    private String customerEmail;
+    private String customerPhone;
+
     private String shippingName;
     private String shippingPhone;
     private String shippingProvince;
@@ -31,8 +37,11 @@ public class OrderResponse {
     private BigDecimal discountAmount;
     private BigDecimal totalAmount;
 
+    private BigDecimal refundAmount;
+
     private String voucherCode;
     private String note;
+    private String staffNote;
     private String cancelledReason;
 
     private Long buildId;

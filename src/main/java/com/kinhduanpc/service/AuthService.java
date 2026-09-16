@@ -27,6 +27,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
+    private final VoucherPolicyService voucherPolicyService;
 
     public void register(RegisterRequest req) {
         if (userRepo.existsByEmail(req.getEmail())) {
@@ -60,6 +61,9 @@ public class AuthService {
 
         emailService.sendVerificationOtp(user.getEmail(), user.getFullName(), otp);
         log.info("Registered user: {}", user.getEmail());
+
+        // Trigger chính sách voucher chào mừng
+        voucherPolicyService.onUserRegistered(user.getId());
     }
 
     public AuthResponse login(LoginRequest req) {

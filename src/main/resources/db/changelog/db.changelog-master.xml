@@ -14,6 +14,7 @@
     <include file="db/changelog/migrations/07__warranty_reviews_stores_content.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/08__triggers.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/11__guest_checkout_support.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/12__voucher_policies.sql" relativeToChangelogFile="false"/>
 
     <!-- Seed data — chỉ chạy khi context = dev -->
     <include file="db/changelog/seeds/01__seed_data.sql" relativeToChangelogFile="false"/>
