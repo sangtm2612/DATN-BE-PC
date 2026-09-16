@@ -86,8 +86,11 @@ public class AuthService {
             throw AppException.unauthorized("Email/SĐT hoặc mật khẩu không đúng");
         }
 
+        if (user.getStatus() == User.UserStatus.inactive) {
+            throw AppException.unauthorized("Tài khoản tạm thời bị vô hiệu. Vui lòng liên hệ quản trị viên");
+        }
         if (user.getStatus() == User.UserStatus.banned) {
-            throw AppException.unauthorized("Tài khoản bị khóa vĩnh viễn. Vui lòng liên hệ CSKH");
+            throw AppException.unauthorized("Tài khoản bị khóa vĩnh viễn do vi phạm. Vui lòng liên hệ CSKH");
         }
 
         userRepo.resetLoginAttempts(user.getId());

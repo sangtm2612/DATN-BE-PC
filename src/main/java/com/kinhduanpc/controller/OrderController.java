@@ -104,11 +104,21 @@ public class OrderController {
 
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    @Operation(summary = "Admin: Cập nhật trạng thái đơn hàng")
+    @Operation(summary = "Admin: Cập nhật trạng thái đơn hàng (validate transition, ghi audit trail)")
     public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(
+            Authentication auth,
             @PathVariable Long id,
             @RequestParam String status,
             @RequestParam(required = false) String staffNote) {
-        return ResponseEntity.ok(ApiResponse.success(orderService.updateOrderStatus(id, status, staffNote)));
+        Long performedByUserId = (Long) auth.getPrincipal();
+        return ResponseEntity.ok(ApiResponse.success(
+            orderService.updateOrderStatus(id, status, staffNote, performedByUserId)));
+    }
+
+    @GetMapping("/admin/{id}/detail")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @Operation(summary = "Admin: Chi tiết đơn hàng kèm lịch sử (audit trail)")
+    public ResponseEntity<ApiResponse<OrderResponse>> getAdminDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(orderService.getAdminOrderDetail(id)));
     }
 }

@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +23,17 @@ import java.util.List;
 @Transactional
 public class OrderService {
 
+    // Các chuyển trạng thái hợp lệ cho Staff/Admin
+    private static final Map<Order.OrderStatus, Set<Order.OrderStatus>> VALID_TRANSITIONS = Map.of(
+        Order.OrderStatus.pending,    Set.of(Order.OrderStatus.confirmed,   Order.OrderStatus.cancelled),
+        Order.OrderStatus.confirmed,  Set.of(Order.OrderStatus.processing,  Order.OrderStatus.cancelled),
+        Order.OrderStatus.processing, Set.of(Order.OrderStatus.shipping,    Order.OrderStatus.cancelled),
+        Order.OrderStatus.shipping,   Set.of(Order.OrderStatus.delivered),
+        Order.OrderStatus.delivered,  Set.of(Order.OrderStatus.completed,   Order.OrderStatus.cancelled)
+    );
+
     private final OrderRepository orderRepo;
+    private final OrderHistoryRepository orderHistoryRepo;
     private final CartRepository cartRepo;
     private final ProductRepository productRepo;
     private final UserRepository userRepo;
@@ -312,6 +324,10 @@ public class OrderService {
                 "order", order.getId());
         }
 
+        // Ghi lịch sử khởi tạo đơn
+        recordHistory(order, null, Order.OrderStatus.pending, user, "customer",
+            "Đơn hàng được tạo" + (sessionId != null && userId == null ? " (guest checkout)" : ""));
+
         log.info("Order created: {} for user {} / session {}", order.getOrderCode(), userId, sessionId);
         return toResponse(order);
     }
@@ -356,20 +372,29 @@ public class OrderService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public OrderResponse getAdminOrderDetail(Long orderId) {
+        Order order = orderRepo.findById(orderId)
+            .orElseThrow(() -> AppException.notFound("Đơn hàng"));
+        return toResponseWithHistory(order);
+    }
+
     public OrderResponse getOrderDetail(Long orderId, Long userId) {
         Order order = orderRepo.findById(orderId)
             .orElseThrow(() -> AppException.notFound("Đơn hàng"));
-        if (userId != null && !order.getUser().getId().equals(userId)) {
+        // Guest order (user == null) hoặc userId không khớp → từ chối
+        if (userId != null && (order.getUser() == null || !order.getUser().getId().equals(userId))) {
             throw AppException.forbidden("Bạn không có quyền xem đơn hàng này");
         }
-        return toResponse(order);
+        return toResponseWithHistory(order);
     }
 
     public OrderResponse cancelOrder(Long orderId, Long userId, String reason) {
         Order order = orderRepo.findById(orderId)
             .orElseThrow(() -> AppException.notFound("Đơn hàng"));
 
-        if (!order.getUser().getId().equals(userId)) {
+        // Kiểm tra quyền (khách hàng chỉ hủy đơn của mình; guest không hủy được qua API này)
+        if (order.getUser() == null || !order.getUser().getId().equals(userId)) {
             throw AppException.forbidden("Bạn không có quyền hủy đơn hàng này");
         }
         if (order.getStatus() != Order.OrderStatus.pending) {
@@ -377,6 +402,7 @@ public class OrderService {
                 "Chỉ có thể hủy đơn hàng ở trạng thái chờ xác nhận");
         }
 
+        Order.OrderStatus fromStatus = order.getStatus();
         order.setStatus(Order.OrderStatus.cancelled);
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelledReason(reason);
@@ -391,21 +417,41 @@ public class OrderService {
 
         orderRepo.save(order);
 
-        if (order.getUser().getEmail() != null) {
-            emailService.sendOrderStatusUpdate(order.getUser().getEmail(),
-                order.getUser().getFullName(), order.getOrderCode(), "Đã hủy");
+        // Ghi lịch sử
+        User customer = order.getUser();
+        recordHistory(order, fromStatus, Order.OrderStatus.cancelled, customer, "customer",
+            reason != null ? "Khách hủy: " + reason : "Khách hủy đơn");
+
+        if (customer != null && customer.getEmail() != null) {
+            emailService.sendOrderStatusUpdate(customer.getEmail(),
+                customer.getFullName(), order.getOrderCode(), "Đã hủy");
         }
 
         return toResponse(order);
     }
 
-    public OrderResponse updateOrderStatus(Long orderId, String status, String staffNote) {
+    public OrderResponse updateOrderStatus(Long orderId, String status, String staffNote, Long performedByUserId) {
         Order order = orderRepo.findById(orderId)
             .orElseThrow(() -> AppException.notFound("Đơn hàng"));
 
-        Order.OrderStatus newStatus = Order.OrderStatus.valueOf(status);
+        Order.OrderStatus currentStatus = order.getStatus();
+        Order.OrderStatus newStatus;
+        try {
+            newStatus = Order.OrderStatus.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            throw AppException.badRequest("INVALID_STATUS", "Trạng thái không hợp lệ: " + status);
+        }
+
+        // Validate chuyển trạng thái hợp lệ
+        Set<Order.OrderStatus> allowed = VALID_TRANSITIONS.getOrDefault(currentStatus, Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw AppException.badRequest("INVALID_TRANSITION",
+                "Không thể chuyển từ [" + currentStatus.name() + "] sang [" + newStatus.name() + "]. " +
+                "Các trạng thái cho phép: " + allowed.stream().map(Enum::name).sorted().toList());
+        }
+
         order.setStatus(newStatus);
-        if (staffNote != null) order.setStaffNote(staffNote);
+        if (staffNote != null && !staffNote.isBlank()) order.setStaffNote(staffNote);
 
         switch (newStatus) {
             case confirmed   -> order.setConfirmedAt(LocalDateTime.now());
@@ -419,6 +465,11 @@ public class OrderService {
 
         orderRepo.save(order);
 
+        // Tìm nhân viên thực hiện để ghi history
+        User performer = (performedByUserId != null)
+            ? userRepo.findById(performedByUserId).orElse(null) : null;
+        recordHistory(order, currentStatus, newStatus, performer, "staff", staffNote);
+
         if (order.getUser() != null && order.getUser().getEmail() != null) {
             emailService.sendOrderStatusUpdate(order.getUser().getEmail(),
                 order.getUser().getFullName(), order.getOrderCode(), status);
@@ -430,6 +481,47 @@ public class OrderService {
         }
 
         return toResponse(order);
+    }
+
+    private void recordHistory(Order order, Order.OrderStatus from, Order.OrderStatus to,
+                               User performer, String actorType, String note) {
+        OrderHistory h = OrderHistory.builder()
+            .order(order)
+            .fromStatus(from != null ? from.name() : null)
+            .toStatus(to.name())
+            .performedBy(performer)
+            .performedByName(performer != null ? performer.getFullName() : null)
+            .performedByRole(performer != null ? performer.getRole().name() : null)
+            .actorType(actorType != null ? actorType : "system")
+            .note(note)
+            .build();
+        orderHistoryRepo.save(h);
+    }
+
+    public OrderResponse toResponseWithHistory(Order o) {
+        OrderResponse resp = toResponse(o);
+        List<OrderHistory> history = orderHistoryRepo.findByOrderIdOrderByCreatedAtAsc(o.getId());
+        resp.setHistory(history.stream().map(h -> {
+            String username = null;
+            if (h.getPerformedBy() != null && h.getPerformedBy().getEmail() != null) {
+                String email = h.getPerformedBy().getEmail();
+                int atIdx = email.indexOf('@');
+                username = atIdx != -1 ? email.substring(0, atIdx) : email;
+            }
+            return OrderResponse.OrderHistoryEntry.builder()
+                .id(h.getId())
+                .fromStatus(h.getFromStatus())
+                .toStatus(h.getToStatus())
+                .performedById(h.getPerformedBy() != null ? h.getPerformedBy().getId() : null)
+                .performedByName(h.getPerformedByName())
+                .performedByUsername(username)
+                .performedByRole(h.getPerformedByRole())
+                .actorType(h.getActorType())
+                .note(h.getNote())
+                .createdAt(h.getCreatedAt())
+                .build();
+        }).toList());
+        return resp;
     }
 
     private String generateOrderCode() {

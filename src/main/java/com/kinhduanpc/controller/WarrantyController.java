@@ -91,6 +91,7 @@ public class WarrantyController {
     }
 
     @PutMapping("/service-requests/{id}/approve-repair")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<ServiceRequestResponse>> approveRepair(
             @PathVariable Long id,
             Authentication auth,

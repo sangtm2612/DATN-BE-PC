@@ -55,6 +55,21 @@ public class OrderResponse {
     private LocalDateTime cancelledAt;
 
     private List<OrderItemResponse> items;
+    private List<OrderHistoryEntry> history;
+
+    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    public static class OrderHistoryEntry {
+        private Long id;
+        private String fromStatus;
+        private String toStatus;
+        private Long performedById;
+        private String performedByName;
+        private String performedByUsername; // email prefix, e.g. "dungftu" from "dungftu@gmail.com"
+        private String performedByRole;
+        private String actorType;
+        private String note;
+        private LocalDateTime createdAt;
+    }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
     public static class OrderItemResponse {

@@ -62,15 +62,24 @@ public class SecurityConfig {
                 // VNPay payment endpoints
                 .requestMatchers("/payments/vnpay/ipn", "/payments/vnpay/return").permitAll()
                 .requestMatchers(HttpMethod.POST, "/payments/vnpay/create").authenticated()
+                // MoMo payment callbacks (called by MoMo server — no JWT)
+                .requestMatchers(HttpMethod.POST, "/payments/momo/ipn").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/payments/momo/return").permitAll()
+                // ZaloPay payment callback (called by ZaloPay server — no JWT)
+                .requestMatchers(HttpMethod.POST, "/payments/zalopay/callback").permitAll()
                 // Store stock (noi bo, phai khai bao TRUOC quy tac GET /stores/** permitAll ben duoi)
                 .requestMatchers("/stores/*/stock", "/stores/*/stock/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.GET, "/stores/**").permitAll()
-                // Admin-only
-                .requestMatchers("/admin/**").hasRole("ADMIN")
+                // Reviews: GET is public so guests can read product reviews
+                .requestMatchers(HttpMethod.GET, "/reviews/**").permitAll()
+                // Admin dashboard & stats (ADMIN + STAFF — AdminController uses @PreAuthorize for fine-grained control)
+                .requestMatchers("/admin/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.POST, "/products/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.PUT, "/products/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.DELETE, "/products/**").hasRole("ADMIN")
                 .requestMatchers("/promotions/**").hasRole("ADMIN")
+                // Vouchers: check & my-vouchers are for authenticated users; everything else is ADMIN-only
+                .requestMatchers(HttpMethod.GET, "/vouchers/check", "/vouchers/my-vouchers").authenticated()
                 .requestMatchers("/vouchers/**").hasRole("ADMIN")
                 .requestMatchers("/shipping-methods/**").hasRole("ADMIN")
                 // Authenticated users
