@@ -29,7 +29,10 @@ public class Order {
     private User user;
 
     @Column(name = "session_id", length = 100)
-    private String sessionId;  // Session ID cho guest checkout
+    private String sessionId;
+
+    @Column(name = "guest_email", length = 255)
+    private String guestEmail;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -82,6 +85,17 @@ public class Order {
 
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
+
+    @Column(name = "deposit_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal depositAmount = BigDecimal.ZERO;
+
+    @Column(name = "deposit_paid", nullable = false)
+    @Builder.Default
+    private Boolean depositPaid = false;
+
+    @Column(name = "remaining_amount", precision = 15, scale = 2)
+    private BigDecimal remainingAmount;
 
     @Column(name = "refund_amount", nullable = false, precision = 15, scale = 2)
     @Builder.Default
@@ -144,7 +158,7 @@ public class Order {
     private List<OrderItem> items = new ArrayList<>();
 
     public enum OrderStatus {
-        pending, confirmed, processing, shipping, delivered, completed, cancelled, refunded
+        pending_deposit, pending, confirmed, processing, shipping, delivered, completed, cancelled, refunded
     }
 
     public enum PaymentMethod {

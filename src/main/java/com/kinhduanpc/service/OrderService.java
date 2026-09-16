@@ -1,5 +1,6 @@
 package com.kinhduanpc.service;
 
+import com.kinhduanpc.config.OrderConfig;
 import com.kinhduanpc.dto.order.*;
 import com.kinhduanpc.entity.*;
 import com.kinhduanpc.exception.AppException;
@@ -25,6 +26,8 @@ public class OrderService {
 
     // Các chuyển trạng thái hợp lệ cho Staff/Admin
     private static final Map<Order.OrderStatus, Set<Order.OrderStatus>> VALID_TRANSITIONS = Map.of(
+        // pending_deposit: admin có thể hủy hoặc xác nhận cọc thủ công (khi nhận chuyển khoản)
+        Order.OrderStatus.pending_deposit, Set.of(Order.OrderStatus.pending, Order.OrderStatus.cancelled),
         Order.OrderStatus.pending,    Set.of(Order.OrderStatus.confirmed,   Order.OrderStatus.cancelled),
         Order.OrderStatus.confirmed,  Set.of(Order.OrderStatus.processing,  Order.OrderStatus.cancelled),
         Order.OrderStatus.processing, Set.of(Order.OrderStatus.shipping,    Order.OrderStatus.cancelled),
@@ -48,6 +51,7 @@ public class OrderService {
     private final EmailService emailService;
     private final NotificationService notificationService;
     private final VoucherPolicyService voucherPolicyService;
+    private final OrderConfig orderConfig;
 
     private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
@@ -173,12 +177,30 @@ public class OrderService {
         BigDecimal totalAmount = subtotal.subtract(discountAmount).add(shippingFee);
         if (totalAmount.compareTo(BigDecimal.ZERO) < 0) totalAmount = BigDecimal.ZERO;
 
+        // Xử lý cọc tiền cho đơn hàng COD
+        BigDecimal depositAmount = BigDecimal.ZERO;
+        BigDecimal remainingAmount = totalAmount;
+        boolean depositPaid = false;
+        Order.OrderStatus initialStatus = Order.OrderStatus.pending;
+        
+        if (Order.PaymentMethod.valueOf(req.getPaymentMethod()) == Order.PaymentMethod.cod) {
+            // COD yêu cầu cọc theo config
+            depositAmount = orderConfig.getCodDepositAmountAsBigDecimal();
+            remainingAmount = totalAmount.subtract(depositAmount);
+            // depositPaid sẽ được cập nhật sau khi thanh toán cọc thành công
+            depositPaid = false;
+            // Order COD bắt đầu với status pending_deposit (chờ thanh toán cọc)
+            initialStatus = Order.OrderStatus.pending_deposit;
+        }
+
         // Create order
         Order order = Order.builder()
             .orderCode(generateOrderCode())
-            .user(user)  // Có thể null cho guest
-            .sessionId(sessionId)  // Lưu sessionId cho guest
-            .status(Order.OrderStatus.pending)
+            .user(user)
+            .sessionId(sessionId)
+            .guestEmail(user == null && req.getGuestEmail() != null && !req.getGuestEmail().isBlank()
+                ? req.getGuestEmail() : null)
+            .status(initialStatus)
             .paymentMethod(Order.PaymentMethod.valueOf(req.getPaymentMethod()))
             .paymentStatus(Order.PaymentStatus.pending)
             .shippingName(req.getShippingName())
@@ -191,6 +213,9 @@ public class OrderService {
             .shippingFee(shippingFee)
             .discountAmount(discountAmount)
             .totalAmount(totalAmount)
+            .depositAmount(depositAmount)
+            .depositPaid(depositPaid)
+            .remainingAmount(remainingAmount)
             .voucher(voucher)
             .voucherCode(req.getVoucherCode())
             .pickupStoreId(req.getPickupStoreId())
@@ -198,10 +223,6 @@ public class OrderService {
             .build(build)
             .build();
 
-        // COD auto-cancel after 48h
-        if (Order.PaymentMethod.cod == order.getPaymentMethod()) {
-            order.setAutoCancelAt(LocalDateTime.now().plusHours(48));
-        }
 
         // Create order items + deduct stock
         for (CartItem cartItem : cart.getItems()) {
@@ -273,7 +294,12 @@ public class OrderService {
             recipientPhone = req.getShippingPhone();
         }
         
-        if (recipientEmail != null) {
+        // Với VNPay/ZaloPay/MoMo: email gửi sau khi callback xác nhận thanh toán thành công
+        boolean isOnlinePayment = order.getPaymentMethod() == Order.PaymentMethod.vnpay
+            || order.getPaymentMethod() == Order.PaymentMethod.zalopay
+            || order.getPaymentMethod() == Order.PaymentMethod.momo;
+
+        if (recipientEmail != null && !isOnlinePayment) {
             // Format số tiền với dấu phân cách hàng nghìn
             String formattedTotal = formatCurrency(totalAmount);
             String formattedSubtotal = formatCurrency(subtotal);
@@ -301,11 +327,17 @@ public class OrderService {
             // Map payment method to Vietnamese
             String paymentMethodLabel = getPaymentMethodLabel(order.getPaymentMethod());
             
+            boolean isCodDeposit = initialStatus == Order.OrderStatus.pending_deposit;
+            String depositAmountFormatted = isCodDeposit && order.getDepositAmount() != null
+                ? formatCurrency(order.getDepositAmount()) : null;
+            String remainingAmountFormatted = isCodDeposit && order.getRemainingAmount() != null
+                ? formatCurrency(order.getRemainingAmount()) : null;
+
             emailService.sendOrderConfirmation(
-                recipientEmail, 
+                recipientEmail,
                 recipientName,
-                order.getOrderCode(), 
-                formattedTotal, 
+                order.getOrderCode(),
+                formattedTotal,
                 recipientPhone,
                 order.getShippingPhone(),
                 emailItems,
@@ -313,7 +345,10 @@ public class OrderService {
                 formattedShippingFee,
                 formattedDiscount,
                 fullAddress,
-                paymentMethodLabel
+                paymentMethodLabel,
+                isCodDeposit,
+                depositAmountFormatted,
+                remainingAmountFormatted
             );
         }
 
@@ -325,10 +360,14 @@ public class OrderService {
         }
 
         // Ghi lịch sử khởi tạo đơn
-        recordHistory(order, null, Order.OrderStatus.pending, user, "customer",
-            "Đơn hàng được tạo" + (sessionId != null && userId == null ? " (guest checkout)" : ""));
+        String historyMessage = "Đơn hàng được tạo" + (sessionId != null && userId == null ? " (guest checkout)" : "");
+        if (initialStatus == Order.OrderStatus.pending_deposit) {
+            historyMessage += " - Chờ thanh toán cọc";
+        }
+        recordHistory(order, null, initialStatus, user, "customer", historyMessage);
 
-        log.info("Order created: {} for user {} / session {}", order.getOrderCode(), userId, sessionId);
+        log.info("Order created: {} with status {} for user {} / session {}", 
+            order.getOrderCode(), initialStatus, userId, sessionId);
         return toResponse(order);
     }
 
@@ -397,9 +436,10 @@ public class OrderService {
         if (order.getUser() == null || !order.getUser().getId().equals(userId)) {
             throw AppException.forbidden("Bạn không có quyền hủy đơn hàng này");
         }
-        if (order.getStatus() != Order.OrderStatus.pending) {
+        if (order.getStatus() != Order.OrderStatus.pending
+                && order.getStatus() != Order.OrderStatus.pending_deposit) {
             throw AppException.badRequest("CANNOT_CANCEL",
-                "Chỉ có thể hủy đơn hàng ở trạng thái chờ xác nhận");
+                "Chỉ có thể hủy đơn hàng ở trạng thái chờ xác nhận hoặc chờ đặt cọc");
         }
 
         Order.OrderStatus fromStatus = order.getStatus();
@@ -498,6 +538,13 @@ public class OrderService {
         orderHistoryRepo.save(h);
     }
 
+    /**
+     * Public method to record order status history from external services (payment callbacks)
+     */
+    public void recordOrderHistory(Order order, Order.OrderStatus from, Order.OrderStatus to, String note) {
+        recordHistory(order, from, to, null, "system", note);
+    }
+
     public OrderResponse toResponseWithHistory(Order o) {
         OrderResponse resp = toResponse(o);
         List<OrderHistory> history = orderHistoryRepo.findByOrderIdOrderByCreatedAtAsc(o.getId());
@@ -557,6 +604,8 @@ public class OrderService {
             .shippingWard(o.getShippingWard()).shippingAddress(o.getShippingAddress())
             .subtotal(o.getSubtotal()).shippingFee(o.getShippingFee())
             .discountAmount(o.getDiscountAmount()).totalAmount(o.getTotalAmount())
+            .depositAmount(o.getDepositAmount()).depositPaid(o.getDepositPaid())
+            .remainingAmount(o.getRemainingAmount())
             .refundAmount(o.getRefundAmount())
             .voucherCode(o.getVoucherCode()).note(o.getNote())
             .staffNote(o.getStaffNote())

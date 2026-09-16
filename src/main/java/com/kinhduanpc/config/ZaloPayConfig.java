@@ -22,4 +22,7 @@ public class ZaloPayConfig {
 
     @Value("${zalopay.callback-url}")
     private String callbackUrl;
+
+    @Value("${zalopay.return-url}")
+    private String returnUrl;
 }

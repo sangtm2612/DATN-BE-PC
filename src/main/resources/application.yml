@@ -90,6 +90,7 @@ app:
     auto-cancel-hours: 48
     auto-complete-days: 7
     return-deadline-days: 15
+    cod-deposit-amount: 100000  # Số tiền cọc cho đơn hàng COD (VND)
 
 # VNPay Configuration
 vnpay:
@@ -119,6 +120,7 @@ zalopay:
   key2: ${ZALOPAY_KEY2:kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz}
   endpoint: ${ZALOPAY_ENDPOINT:https://sb-openapi.zalopay.vn/v2/create}
   callback-url: ${ZALOPAY_CALLBACK_URL:http://localhost:8080/api/payments/zalopay/callback}
+  return-url: ${ZALOPAY_RETURN_URL:http://localhost:8080/api/payments/zalopay/return}
 
 # Springdoc OpenAPI
 springdoc:

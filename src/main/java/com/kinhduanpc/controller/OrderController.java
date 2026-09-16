@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/orders")
@@ -113,6 +114,29 @@ public class OrderController {
         Long performedByUserId = (Long) auth.getPrincipal();
         return ResponseEntity.ok(ApiResponse.success(
             orderService.updateOrderStatus(id, status, staffNote, performedByUserId)));
+    }
+
+    @PutMapping("/batch-status")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @Operation(summary = "Admin: Cập nhật trạng thái hàng loạt")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> batchUpdateStatus(
+            Authentication auth,
+            @RequestBody BatchStatusRequest req) {
+        Long performedByUserId = (Long) auth.getPrincipal();
+        int updated = 0;
+        int failed = 0;
+        for (Long id : req.getIds()) {
+            try {
+                orderService.updateOrderStatus(id, req.getStatus(), req.getStaffNote(), performedByUserId);
+                updated++;
+            } catch (Exception e) {
+                failed++;
+            }
+        }
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("updated", updated);
+        result.put("failed", failed);
+        return ResponseEntity.ok(ApiResponse.success(result, "Cập nhật " + updated + " đơn hàng thành công"));
     }
 
     @GetMapping("/admin/{id}/detail")

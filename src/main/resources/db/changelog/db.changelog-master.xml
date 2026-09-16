@@ -16,6 +16,10 @@
     <include file="db/changelog/migrations/11__guest_checkout_support.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/12__voucher_policies.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/migrations/13__order_history.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/14__fix_notification_type.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/15__add_deposit_fields_to_orders.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/16__add_pending_deposit_status.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/migrations/17__add_guest_email_to_orders.sql" relativeToChangelogFile="false"/>
 
     <!-- Seed data — chỉ chạy khi context = dev -->
     <include file="db/changelog/seeds/01__seed_data.sql" relativeToChangelogFile="false"/>

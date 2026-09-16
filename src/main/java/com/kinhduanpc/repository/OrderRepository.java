@@ -76,6 +76,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("SELECT o FROM Order o WHERE o.status = 'pending' AND o.autoCancelAt IS NOT NULL AND o.autoCancelAt < CURRENT_TIMESTAMP")
     List<Order> findOrdersToAutoCancel();
+    
+    /**
+     * Tìm các đơn hàng pending_deposit đã quá thời gian cho phép (để tự động hủy)
+     */
+    List<Order> findByStatusAndCreatedAtBefore(Order.OrderStatus status, LocalDateTime createdBefore);
 
     @Query("SELECT o FROM Order o WHERE o.status = 'delivered' AND o.deliveredAt < :threshold")
     List<Order> findOrdersToAutoComplete(@Param("threshold") LocalDateTime threshold);

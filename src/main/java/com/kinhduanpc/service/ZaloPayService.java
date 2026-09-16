@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -33,6 +34,7 @@ public class ZaloPayService {
     private final ZaloPayConfig zaloPayConfig;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
+    private final EmailService emailService;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -41,10 +43,22 @@ public class ZaloPayService {
 
     /**
      * Tạo payment request tới ZaloPay
+     * @param orderId ID đơn hàng
+     * @param ipAddress IP address của khách hàng
      */
     public String createPaymentUrl(Long orderId, String ipAddress) {
+        return createPaymentUrl(orderId, null, ipAddress);
+    }
+
+    /**
+     * Tạo payment request tới ZaloPay với số tiền tùy chỉnh
+     * @param orderId ID đơn hàng
+     * @param customAmount Số tiền thanh toán (null = thanh toán toàn bộ)
+     * @param ipAddress IP address của khách hàng
+     */
+    public String createPaymentUrl(Long orderId, Long customAmount, String ipAddress) {
         log.info("=== Creating ZaloPay Payment URL ===");
-        log.info("Order ID: {}, IP: {}", orderId, ipAddress);
+        log.info("Order ID: {}, Custom Amount: {}, IP: {}", orderId, customAmount, ipAddress);
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> AppException.notFound("Đơn hàng"));
@@ -52,9 +66,10 @@ public class ZaloPayService {
         log.info("Found order: {}, amount: {}, payment_method: {}, payment_status: {}", 
                 order.getOrderCode(), order.getTotalAmount(), order.getPaymentMethod(), order.getPaymentStatus());
 
-        // Validate order
-        if (!order.getPaymentMethod().equals(Order.PaymentMethod.zalopay)) {
-            throw AppException.badRequest("INVALID_PAYMENT_METHOD", "Đơn hàng không sử dụng ZaloPay");
+        // Validate order - Cho phép cả COD và ZaloPay
+        if (!order.getPaymentMethod().equals(Order.PaymentMethod.zalopay)
+                && !order.getPaymentMethod().equals(Order.PaymentMethod.cod)) {
+            throw AppException.badRequest("INVALID_PAYMENT_METHOD", "Đơn hàng không hỗ trợ thanh toán ZaloPay");
         }
         if (!order.getPaymentStatus().equals(Order.PaymentStatus.pending)) {
             throw AppException.badRequest("INVALID_PAYMENT_STATUS", "Đơn hàng đã thanh toán hoặc đã hủy");
@@ -65,25 +80,30 @@ public class ZaloPayService {
             String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
             String appTransId = date + "_" + order.getId();
 
-            long amount = order.getTotalAmount().longValue();
+            // Xác định số tiền thanh toán
+            long amount = (customAmount != null) ? customAmount : order.getTotalAmount().longValue();
             long appTime = ZaloPayUtil.getCurrentTimeMillis();
 
             log.info("Generated app_trans_id: {}, amount: {}, app_time: {}", appTransId, amount, appTime);
 
-            // Embed data for callback
+            // Embed data for callback — redirect qua BE return endpoint để normalize params + truyền phone
             Map<String, Object> embedData = new HashMap<>();
-            embedData.put("redirecturl", frontendUrl + "/payment-result");
+            embedData.put("redirecturl", zaloPayConfig.getReturnUrl());
 
             // Item format: [{"itemid":"item_id","itemname":"item_name","itemprice":price,"itemquantity":quantity}]
             String item = "[{\"itemid\":\"" + order.getId() + "\",\"itemname\":\"Don hang " + order.getOrderCode() + "\",\"itemprice\":" + amount + ",\"itemquantity\":1}]";
 
             // Build data for MAC
-            String data = zaloPayConfig.getAppId() + "|" 
-                    + appTransId + "|" 
-                    + (order.getUser().getEmail() != null ? order.getUser().getEmail() : order.getUser().getPhone()) + "|" 
-                    + amount + "|" 
-                    + appTime + "|" 
-                    + objectMapper.writeValueAsString(embedData) + "|" 
+            String appUser = order.getUser() != null
+                ? (order.getUser().getEmail() != null ? order.getUser().getEmail() : order.getUser().getPhone())
+                : "guest_" + order.getOrderCode();
+
+            String data = zaloPayConfig.getAppId() + "|"
+                    + appTransId + "|"
+                    + appUser + "|"
+                    + amount + "|"
+                    + appTime + "|"
+                    + objectMapper.writeValueAsString(embedData) + "|"
                     + item;
 
             log.info("MAC data string: {}", data);
@@ -96,7 +116,7 @@ public class ZaloPayService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("app_id", Integer.parseInt(zaloPayConfig.getAppId()));
             requestBody.put("app_trans_id", appTransId);
-            requestBody.put("app_user", order.getUser().getEmail() != null ? order.getUser().getEmail() : order.getUser().getPhone());
+            requestBody.put("app_user", appUser);
             requestBody.put("app_time", appTime);
             requestBody.put("amount", amount);
             requestBody.put("item", item);
@@ -202,9 +222,15 @@ public class ZaloPayService {
 
             log.info("Found order: {}, current status: {}", order.getOrderCode(), order.getPaymentStatus());
 
-            // 6. Check amount
-            if (order.getTotalAmount().longValue() != amount) {
-                log.error("Amount mismatch - Order: {}, ZaloPay: {}", order.getTotalAmount().longValue(), amount);
+            // 6. Check amount - Chấp nhận cả thanh toán toàn bộ và thanh toán cọc
+            long orderTotalAmount = order.getTotalAmount().longValue();
+            long orderDepositAmount = order.getDepositAmount().longValue();
+            boolean isDepositPayment = (amount == orderDepositAmount && orderDepositAmount > 0);
+            boolean isFullPayment = (amount == orderTotalAmount);
+            
+            if (!isDepositPayment && !isFullPayment) {
+                log.error("Amount mismatch for order: {}. Expected {} (full) or {} (deposit), got {}", 
+                    order.getOrderCode(), orderTotalAmount, orderDepositAmount, amount);
                 result.put("return_code", 0); // Still return success to avoid retry
                 result.put("return_message", "success");
                 return result;
@@ -220,14 +246,30 @@ public class ZaloPayService {
             }
 
             // 8. Process payment - ZaloPay callback only fires on success
-            order.setPaymentStatus(Order.PaymentStatus.paid);
+            if (isDepositPayment) {
+                // Thanh toán cọc thành công
+                order.setDepositPaid(true);
+                
+                // Nếu order đang ở trạng thái pending_deposit, chuyển sang pending
+                if (order.getStatus() == Order.OrderStatus.pending_deposit) {
+                    order.setStatus(Order.OrderStatus.pending);
+                    // Set auto-cancel sau 48h kể từ khi cọc thành công
+                    order.setAutoCancelAt(LocalDateTime.now().plusHours(48));
+                }
+                
+                log.info("Deposit payment successful for order: {} (amount: {}), status changed to pending", order.getOrderCode(), amount);
+            } else {
+                // Thanh toán toàn bộ thành công
+                order.setPaymentStatus(Order.PaymentStatus.paid);
+                log.info("Full payment successful for order: {} (amount: {})", order.getOrderCode(), amount);
+            }
 
             // Create payment record
             Payment payment = Payment.builder()
                     .order(order)
                     .transactionId(zpTransId)
                     .gateway("zalopay")
-                    .amount(order.getTotalAmount())
+                    .amount(BigDecimal.valueOf(amount))
                     .currency("VND")
                     .status(Order.PaymentStatus.paid)
                     .gatewayResponse(dataStr)
@@ -236,6 +278,13 @@ public class ZaloPayService {
 
             paymentRepository.save(payment);
             orderRepository.save(order);
+
+            if (isDepositPayment) {
+                sendDepositConfirmedEmail(order);
+            } else {
+                // Thanh toán toàn bộ: gửi email xác nhận đơn hàng
+                emailService.sendOrderConfirmationFromOrder(order.getId());
+            }
 
             log.info("✅ ZaloPay payment successful for order: {}", order.getOrderCode());
             result.put("return_code", 1);
@@ -248,6 +297,24 @@ public class ZaloPayService {
         }
 
         return result;
+    }
+
+    private void sendDepositConfirmedEmail(Order order) {
+        try {
+            String recipientEmail = order.getUser() != null ? order.getUser().getEmail() : order.getGuestEmail();
+            if (recipientEmail == null) return;
+
+            String recipientName = order.getUser() != null ? order.getUser().getFullName() : order.getShippingName();
+            String orderLink = frontendUrl + "/tra-don-hang?code=" + order.getOrderCode()
+                + (order.getShippingPhone() != null ? "&phone=" + order.getShippingPhone() : "");
+            String depositFormatted = String.format("%,.0fđ", order.getDepositAmount().doubleValue());
+            String remainingFormatted = order.getRemainingAmount() != null
+                ? String.format("%,.0fđ", order.getRemainingAmount().doubleValue()) : "0đ";
+            emailService.sendDepositConfirmed(recipientEmail, recipientName, order.getOrderCode(),
+                depositFormatted, remainingFormatted, orderLink);
+        } catch (Exception e) {
+            log.warn("Failed to send deposit confirmed email for order {}: {}", order.getOrderCode(), e.getMessage());
+        }
     }
 
     /**

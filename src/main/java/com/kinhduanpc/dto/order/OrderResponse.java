@@ -36,6 +36,10 @@ public class OrderResponse {
     private BigDecimal shippingFee;
     private BigDecimal discountAmount;
     private BigDecimal totalAmount;
+    
+    private BigDecimal depositAmount;
+    private Boolean depositPaid;
+    private BigDecimal remainingAmount;
 
     private BigDecimal refundAmount;
 

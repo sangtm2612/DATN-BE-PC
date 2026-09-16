@@ -59,14 +59,18 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/build-pc/check-compatibility").permitAll()
                 .requestMatchers(HttpMethod.GET, "/promotions/active").permitAll()
                 .requestMatchers(HttpMethod.GET, "/shipping-methods").permitAll()
-                // VNPay payment endpoints
+                .requestMatchers(HttpMethod.GET, "/config/**").permitAll()  // Public config endpoints
+                // Payment create endpoints: public để guest COD có thể thanh toán cọc
+                .requestMatchers(HttpMethod.POST, "/payments/vnpay/create").permitAll()
+                .requestMatchers(HttpMethod.POST, "/payments/zalopay/create").permitAll()
+                // VNPay callbacks
                 .requestMatchers("/payments/vnpay/ipn", "/payments/vnpay/return").permitAll()
-                .requestMatchers(HttpMethod.POST, "/payments/vnpay/create").authenticated()
-                // MoMo payment callbacks (called by MoMo server — no JWT)
+                // MoMo callbacks (called by MoMo server — no JWT)
                 .requestMatchers(HttpMethod.POST, "/payments/momo/ipn").permitAll()
                 .requestMatchers(HttpMethod.GET,  "/payments/momo/return").permitAll()
-                // ZaloPay payment callback (called by ZaloPay server — no JWT)
+                // ZaloPay callback + return (callback called by ZaloPay server, return is user browser redirect)
                 .requestMatchers(HttpMethod.POST, "/payments/zalopay/callback").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/payments/zalopay/return").permitAll()
                 // Store stock (noi bo, phai khai bao TRUOC quy tac GET /stores/** permitAll ben duoi)
                 .requestMatchers("/stores/*/stock", "/stores/*/stock/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.GET, "/stores/**").permitAll()

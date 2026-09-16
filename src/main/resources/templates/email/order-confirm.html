@@ -8,9 +8,11 @@
   </div>
   
   <div style="padding:32px;">
-    <h2 style="color:#333;margin:0 0 16px;">Đặt hàng thành công!</h2>
+    <h2 th:if="${isCodDeposit}" style="color:#e65100;margin:0 0 16px;">Yêu cầu thanh toán cọc!</h2>
+    <h2 th:unless="${isCodDeposit}" style="color:#333;margin:0 0 16px;">Đặt hàng thành công!</h2>
     <p style="color:#666;margin:0 0 8px;">Xin chào <strong th:text="${name}" style="color:#333;">Khách hàng</strong>,</p>
-    <p style="color:#666;margin:0 0 24px;">Cảm ơn bạn đã đặt hàng tại KinhDuanPC. Đơn hàng của bạn đã được tiếp nhận và đang được xử lý.</p>
+    <p th:if="${isCodDeposit}" style="color:#666;margin:0 0 24px;">Đơn hàng COD của bạn đã được tạo tại KinhDuanPC. Vui lòng thanh toán cọc trong vòng <strong style="color:#e65100;">15 phút</strong> để xác nhận đơn hàng, sau thời gian này đơn sẽ bị tự động hủy.</p>
+    <p th:unless="${isCodDeposit}" style="color:#666;margin:0 0 24px;">Cảm ơn bạn đã đặt hàng tại KinhDuanPC. Đơn hàng của bạn đã được tiếp nhận và đang được xử lý.</p>
     
     <!-- Order Info -->
     <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:0 0 24px;">
@@ -81,10 +83,29 @@
       </table>
     </div>
     
+    <!-- COD Deposit Section -->
+    <div th:if="${isCodDeposit}" style="background:#fff3e0;border:2px solid #ff9800;border-radius:8px;padding:20px;margin:0 0 24px;">
+      <h3 style="color:#e65100;margin:0 0 12px;font-size:16px;">Thông tin thanh toán cọc</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:8px 0;color:#666;font-size:14px;">Tiền cọc thanh toán ngay:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:bold;font-size:18px;color:#e65100;" th:text="${depositAmount}">0đ</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;color:#666;font-size:14px;">Còn lại thanh toán khi nhận hàng:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:600;color:#333;" th:text="${remainingAmount}">0đ</td>
+        </tr>
+      </table>
+      <p style="margin:12px 0 0;color:#bf360c;font-size:13px;line-height:1.5;border-top:1px solid #ffcc80;padding-top:12px;">
+        <strong>Lưu ý quan trọng:</strong> Bạn phải hoàn tất thanh toán cọc trong vòng <strong>15 phút</strong> kể từ khi đặt hàng. Nếu quá hạn, đơn hàng sẽ bị tự động hủy và bạn cần đặt lại.
+      </p>
+    </div>
+
     <!-- CTA Button -->
-    <a th:href="${orderLink}" style="display:block;text-align:center;background:#e53935;color:#fff;padding:16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;margin:0 0 16px;">
-      <span th:if="${isGuest}">Tra cứu đơn hàng</span>
-      <span th:unless="${isGuest}">Xem chi tiết đơn hàng</span>
+    <a th:href="${orderLink}" th:style="${isCodDeposit} ? 'display:block;text-align:center;background:#e65100;color:#fff;padding:16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;margin:0 0 16px;' : 'display:block;text-align:center;background:#e53935;color:#fff;padding:16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;margin:0 0 16px;'">
+      <span th:if="${isCodDeposit}">Thanh toán cọc ngay</span>
+      <span th:if="${!isCodDeposit and isGuest}">Tra cứu đơn hàng</span>
+      <span th:if="${!isCodDeposit and !isGuest}">Xem chi tiết đơn hàng</span>
     </a>
     
     <!-- Guest Note -->
