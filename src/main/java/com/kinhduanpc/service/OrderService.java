@@ -37,12 +37,25 @@ public class OrderService {
 
     private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
-    public OrderResponse createOrder(Long userId, CreateOrderRequest req) {
-        User user = userRepo.findById(userId)
-            .orElseThrow(() -> AppException.notFound("Người dùng"));
-
-        Cart cart = cartRepo.findByUserId(userId)
-            .orElseThrow(() -> AppException.badRequest("EMPTY_CART", "Giỏ hàng trống"));
+    public OrderResponse createOrder(Long userId, String sessionId, CreateOrderRequest req) {
+        // Xác định user (có thể null cho guest)
+        User user = null;
+        if (userId != null) {
+            user = userRepo.findById(userId)
+                .orElseThrow(() -> AppException.notFound("Người dùng"));
+        }
+        
+        // Lấy cart (ưu tiên userId, fallback sessionId)
+        Cart cart;
+        if (userId != null) {
+            cart = cartRepo.findByUserId(userId)
+                .orElseThrow(() -> AppException.badRequest("EMPTY_CART", "Giỏ hàng trống"));
+        } else if (sessionId != null && !sessionId.isEmpty()) {
+            cart = cartRepo.findBySessionId(sessionId)
+                .orElseThrow(() -> AppException.badRequest("EMPTY_CART", "Giỏ hàng trống"));
+        } else {
+            throw AppException.badRequest("MISSING_USER_OR_SESSION", "Thiếu thông tin user hoặc session");
+        }
 
         if (cart.getItems().isEmpty()) {
             throw AppException.badRequest("EMPTY_CART", "Giỏ hàng không có sản phẩm");
@@ -59,10 +72,12 @@ public class OrderService {
             subtotal = subtotal.add(p.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
         }
 
-        // Build PC (nếu đặt hàng từ cấu hình đã lưu) — resolve trước để PromotionService biết
-        // co ap dung uu dai build_pc (CPU %/cash bonus) hay khong.
+        // Build PC (nếu đặt hàng từ cấu hình đã lưu) — chỉ cho user đã login
         PcBuild build = null;
         if (req.getBuildId() != null) {
+            if (userId == null) {
+                throw AppException.badRequest("BUILD_PC_REQUIRE_LOGIN", "Đặt hàng từ cấu hình PC yêu cầu đăng nhập");
+            }
             build = pcBuildRepo.findById(req.getBuildId())
                 .orElseThrow(() -> AppException.notFound("Cấu hình PC"));
             if (!build.getUserId().equals(userId)) {
@@ -141,7 +156,8 @@ public class OrderService {
         // Create order
         Order order = Order.builder()
             .orderCode(generateOrderCode())
-            .user(user)
+            .user(user)  // Có thể null cho guest
+            .sessionId(sessionId)  // Lưu sessionId cho guest
             .status(Order.OrderStatus.pending)
             .paymentMethod(Order.PaymentMethod.valueOf(req.getPaymentMethod()))
             .paymentStatus(Order.PaymentStatus.pending)
@@ -216,17 +232,54 @@ public class OrderService {
         cart.getItems().clear();
         cartRepo.save(cart);
 
-        // Send email
-        if (user.getEmail() != null) {
-            emailService.sendOrderConfirmation(user.getEmail(), user.getFullName(),
-                order.getOrderCode(), totalAmount.toPlainString());
+        // Send email confirmation
+        String recipientEmail = null;
+        String recipientName = null;
+        String recipientPhone = null;
+        
+        if (user != null && user.getEmail() != null) {
+            // Khách hàng đã đăng nhập
+            recipientEmail = user.getEmail();
+            recipientName = user.getFullName();
+        } else if (req.getGuestEmail() != null && !req.getGuestEmail().isBlank()) {
+            // Khách hàng guest có cung cấp email
+            recipientEmail = req.getGuestEmail();
+            recipientName = req.getShippingName();
+            recipientPhone = req.getShippingPhone();
+        }
+        
+        if (recipientEmail != null) {
+            // Format số tiền với dấu phân cách hàng nghìn
+            String formattedAmount = formatCurrency(totalAmount);
+            
+            // Prepare order items for email
+            java.util.List<EmailService.OrderItemDto> emailItems = order.getItems().stream()
+                .map(item -> new EmailService.OrderItemDto(
+                    item.getProductName(),
+                    item.getQuantity(),
+                    formatCurrency(item.getTotalPrice())
+                ))
+                .collect(java.util.stream.Collectors.toList());
+            
+            emailService.sendOrderConfirmation(
+                recipientEmail, 
+                recipientName,
+                order.getOrderCode(), 
+                formattedAmount, 
+                recipientPhone,
+                order.getShippingPhone(),
+                emailItems
+            );
         }
 
-        notificationService.createNotification(userId, "order_update",
-            "Đặt hàng thành công", "Đơn hàng " + order.getOrderCode() + " đã được tạo",
-            "order", order.getId());
+        // Notification (chỉ cho user đã login)
+        if (userId != null) {
+            notificationService.createNotification(userId, "order_update",
+                "Đặt hàng thành công", "Đơn hàng " + order.getOrderCode() + " đã được tạo",
+                "order", order.getId());
+        }
 
-        log.info("Order created: {} for user {}", order.getOrderCode(), userId);
+        log.info("Order created: {} for user {} / session {}", order.getOrderCode(), userId, sessionId);
         return toResponse(order);
     }
 
@@ -365,5 +418,21 @@ public class OrderService {
                 .unitPrice(i.getUnitPrice()).totalPrice(i.getTotalPrice())
                 .warrantyMonths(i.getWarrantyMonths()).build()).toList())
             .build();
+    }
+
+    /**
+     * Format tiền theo chuẩn VND: 1.500.000đ
+     * Đồng nhất với frontend (numeral format '0,0' + 'đ' nhưng dùng dấu chấm thay vì dấu phẩy)
+     */
+    private String formatCurrency(BigDecimal amount) {
+        if (amount == null) return "0đ";
+        
+        // Convert to long để format (VND không có phần thập phân)
+        long value = amount.longValue();
+        
+        // Format với dấu chấm làm phân cách hàng nghìn
+        String formatted = String.format("%,d", value).replace(',', '.');
+        
+        return formatted + "đ";
     }
 }

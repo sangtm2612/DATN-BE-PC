@@ -57,17 +57,49 @@ public class EmailService {
 
     @Async
     public void sendOrderConfirmation(String to, String name, String orderCode, String totalAmount) {
+        sendOrderConfirmation(to, name, orderCode, totalAmount, null, null, null);
+    }
+
+    @Async
+    public void sendOrderConfirmation(String to, String name, String orderCode, String totalAmount, String phone) {
+        sendOrderConfirmation(to, name, orderCode, totalAmount, phone, null, null);
+    }
+
+    @Async
+    public void sendOrderConfirmation(String to, String name, String orderCode, String totalAmount, 
+                                      String phone, String shippingPhone, java.util.List<OrderItemDto> items) {
         try {
             Context ctx = new Context();
             ctx.setVariable("name", name);
             ctx.setVariable("orderCode", orderCode);
             ctx.setVariable("totalAmount", totalAmount);
-            ctx.setVariable("orderLink", frontendUrl + "/account/orders/" + orderCode);
+            ctx.setVariable("shippingPhone", shippingPhone);
+            ctx.setVariable("items", items);
+            
+            // Sử dụng route track order cho cả guest và user
+            String orderLink = frontendUrl + "/tra-don-hang?code=" + orderCode;
+            if (phone != null) {
+                orderLink += "&phone=" + phone;
+            }
+            
+            ctx.setVariable("orderLink", orderLink);
+            ctx.setVariable("isGuest", phone != null);
+            
             String html = templateEngine.process("email/order-confirm", ctx);
             sendHtmlEmail(to, "Xác nhận đơn hàng " + orderCode + " - KinhDuanPC", html);
         } catch (Exception e) {
             log.error("Failed to send order confirmation to {}: {}", to, e.getMessage());
         }
+    }
+
+    // DTO for email template
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class OrderItemDto {
+        private String productName;
+        private Integer quantity;
+        private String price;
     }
 
     @Async

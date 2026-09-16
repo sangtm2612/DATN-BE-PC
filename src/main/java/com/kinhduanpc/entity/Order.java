@@ -25,8 +25,11 @@ public class Order {
     private String orderCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", nullable = true)  // nullable cho guest checkout
     private User user;
+
+    @Column(name = "session_id", length = 100)
+    private String sessionId;  // Session ID cho guest checkout
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

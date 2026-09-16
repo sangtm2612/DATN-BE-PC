@@ -7,6 +7,10 @@ import lombok.Data;
 @Data
 public class CreateOrderRequest {
 
+    // Guest checkout
+    private String sessionId; // Session ID cho guest (không cần đăng nhập)
+    private String guestEmail; // Email cho khách hàng guest (để gửi xác nhận đơn hàng)
+
     // Địa chỉ giao hàng
     private Long addressId; // dùng địa chỉ có sẵn hoặc nhập mới
 

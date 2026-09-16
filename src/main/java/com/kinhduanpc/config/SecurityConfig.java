@@ -51,6 +51,7 @@ public class SecurityConfig {
                     "/banners/**", "/blog/**",
                     "/search/**", "/home/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/track").permitAll()
+                .requestMatchers(HttpMethod.POST, "/orders").permitAll()  // Guest checkout
                 .requestMatchers(HttpMethod.GET, "/warranties/lookup").permitAll()
                 .requestMatchers("/files/**").permitAll()
                 .requestMatchers("/cart/**").permitAll()

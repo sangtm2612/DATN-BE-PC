@@ -25,13 +25,28 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    @Operation(summary = "Đặt hàng")
+    @Operation(summary = "Đặt hàng (hỗ trợ guest checkout)")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             Authentication auth,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
             @Valid @RequestBody CreateOrderRequest req) {
-        Long userId = (Long) auth.getPrincipal();
+        
+        Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+        
+        // Ưu tiên sessionId từ header, fallback về request body
+        String finalSessionId = sessionId != null ? sessionId : req.getSessionId();
+        
+        // Kiểm tra: hoặc có userId HOẶC có sessionId
+        if (userId == null && (finalSessionId == null || finalSessionId.isEmpty())) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("400", "Vui lòng đăng nhập hoặc cung cấp session ID"));
+        }
+        
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(ApiResponse.success(orderService.createOrder(userId, req), "Đặt hàng thành công"));
+            .body(ApiResponse.success(
+                orderService.createOrder(userId, finalSessionId, req), 
+                "Đặt hàng thành công"
+            ));
     }
 
     @GetMapping("/track")

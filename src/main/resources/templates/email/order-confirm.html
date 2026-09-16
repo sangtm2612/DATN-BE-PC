@@ -2,24 +2,85 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head><meta charset="UTF-8"><title>Xác nhận đơn hàng</title></head>
 <body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:20px;">
-<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
   <div style="background:#e53935;padding:24px;text-align:center;">
-    <h1 style="color:#fff;margin:0;">KinhDuanPC</h1>
+    <h1 style="color:#fff;margin:0;font-size:28px;">KinhDuanPC</h1>
   </div>
+  
   <div style="padding:32px;">
-    <h2 style="color:#333;">Đặt hàng thành công!</h2>
-    <p>Xin chào <strong th:text="${name}">Khách hàng</strong>,</p>
-    <p>Đơn hàng <strong th:text="${orderCode}" style="color:#e53935;">HC-2026-000001</strong> của bạn đã được tiếp nhận.</p>
-    <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:20px 0;">
-      <p style="margin:0;color:#666;">Tổng thanh toán:</p>
-      <p style="margin:4px 0 0;font-size:24px;font-weight:bold;color:#e53935;" th:text="${totalAmount + ' đ'}">0 đ</p>
+    <h2 style="color:#333;margin:0 0 16px;">Đặt hàng thành công! 🎉</h2>
+    <p style="color:#666;margin:0 0 8px;">Xin chào <strong th:text="${name}" style="color:#333;">Khách hàng</strong>,</p>
+    <p style="color:#666;margin:0 0 24px;">Cảm ơn bạn đã đặt hàng tại KinhDuanPC. Đơn hàng của bạn đã được tiếp nhận và đang được xử lý.</p>
+    
+    <!-- Order Info -->
+    <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:0 0 24px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="padding:8px 0;color:#666;font-size:14px;">Mã đơn hàng:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:bold;color:#e53935;" th:text="${orderCode}">HC-2026-000001</td>
+        </tr>
+        <tr th:if="${shippingPhone}">
+          <td style="padding:8px 0;color:#666;font-size:14px;">Số điện thoại:</td>
+          <td style="padding:8px 0;text-align:right;font-weight:500;color:#333;" th:text="${shippingPhone}">0901234567</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:16px 0 8px;border-top:1px solid #e0e0e0;">
+            <span style="color:#666;font-size:14px;">Tổng thanh toán:</span>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:0;">
+            <p style="margin:0;font-size:28px;font-weight:bold;color:#e53935;text-align:center;" th:text="${totalAmount}">0đ</p>
+          </td>
+        </tr>
+      </table>
     </div>
-    <a th:href="${orderLink}" style="display:block;text-align:center;background:#e53935;color:#fff;padding:14px;border-radius:6px;text-decoration:none;font-weight:bold;">
-      Xem chi tiết đơn hàng
+    
+    <!-- Products List -->
+    <div th:if="${items != null and !items.isEmpty()}" style="margin:0 0 24px;">
+      <h3 style="color:#333;font-size:16px;margin:0 0 12px;">Sản phẩm đã đặt:</h3>
+      <div style="background:#fafafa;border-radius:8px;padding:16px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr th:each="item : ${items}" style="border-bottom:1px solid #e0e0e0;">
+            <td style="padding:12px 0;">
+              <div style="font-weight:500;color:#333;font-size:14px;" th:text="${item.productName}">Sản phẩm</div>
+              <div style="color:#999;font-size:12px;margin-top:4px;">
+                <span>Số lượng: </span>
+                <span th:text="${item.quantity}">1</span>
+              </div>
+            </td>
+            <td style="padding:12px 0;text-align:right;font-weight:600;color:#e53935;white-space:nowrap;" th:text="${item.price}">0đ</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    
+    <!-- CTA Button -->
+    <a th:href="${orderLink}" style="display:block;text-align:center;background:#e53935;color:#fff;padding:16px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;margin:0 0 16px;">
+      <span th:if="${isGuest}">🔍 Tra cứu đơn hàng</span>
+      <span th:unless="${isGuest}">📦 Xem chi tiết đơn hàng</span>
     </a>
+    
+    <!-- Guest Note -->
+    <div th:if="${isGuest}" style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;border-radius:4px;margin:0 0 16px;">
+      <p style="margin:0;color:#856404;font-size:13px;line-height:1.5;">
+        <strong>📌 Lưu ý:</strong> Bạn có thể tra cứu đơn hàng bất kỳ lúc nào bằng mã đơn hàng và số điện thoại. 
+        Hoặc nhấn vào nút bên trên để xem chi tiết ngay.
+      </p>
+    </div>
+    
+    <!-- Contact Info -->
+    <div style="text-align:center;padding:16px 0;border-top:1px solid #e0e0e0;">
+      <p style="color:#666;font-size:13px;margin:0 0 8px;">Cần hỗ trợ? Liên hệ với chúng tôi:</p>
+      <p style="margin:0;">
+        <a href="tel:19001903" style="color:#e53935;text-decoration:none;font-weight:600;font-size:18px;">📞 1900 1903</a>
+      </p>
+    </div>
   </div>
-  <div style="background:#f8f8f8;padding:16px;text-align:center;color:#999;font-size:12px;">
-    © 2026 KinhDuanPC | Hotline: 1900 1903
+  
+  <div style="background:#f8f8f8;padding:20px;text-align:center;color:#999;font-size:12px;">
+    <p style="margin:0 0 8px;">© 2026 KinhDuanPC - Hệ thống bán lẻ máy tính, linh kiện PC hàng đầu Việt Nam</p>
+    <p style="margin:0;">Email này được gửi tự động, vui lòng không trả lời trực tiếp.</p>
   </div>
 </div>
 </body>
