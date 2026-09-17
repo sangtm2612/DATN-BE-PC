@@ -4,6 +4,7 @@ import com.kinhduanpc.dto.order.ReturnRequestDecisionRequest;
 import com.kinhduanpc.dto.order.ReturnRequestRequest;
 import com.kinhduanpc.dto.order.ReturnRequestResponse;
 import com.kinhduanpc.dto.order.ReturnRequestReviewRequest;
+import com.kinhduanpc.entity.AuditLog;
 import com.kinhduanpc.entity.Order;
 import com.kinhduanpc.entity.OrderItem;
 import com.kinhduanpc.entity.ReturnMedia;
@@ -44,6 +45,7 @@ public class ReturnRequestService {
     private final OrderRepository orderRepo;
     private final UserRepository userRepo;
     private final EmailService emailService;
+    private final AuditLogService auditLogService;
 
     private static final Set<String> ALLOWED_REASONS = Set.of(
         "defective", "wrong_item", "damaged_delivery", "not_satisfied");
@@ -152,16 +154,20 @@ public class ReturnRequestService {
         return new PageImpl<>(content, pageable, pagedRequests.getTotalElements());
     }
 
-    public ReturnRequestResponse review(Long id, ReturnRequestReviewRequest req) {
+    public ReturnRequestResponse review(Long id, ReturnRequestReviewRequest req, Long performedByUserId) {
         ReturnRequest rr = returnRequestRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Yêu cầu đổi/trả"));
         if (rr.getStatus() != ReturnRequest.ReturnStatus.pending) {
             throw AppException.badRequest("INVALID_STATUS_TRANSITION",
                 "Chỉ có thể xem xét yêu cầu đang ở trạng thái chờ xử lý");
         }
+        String fromStatus = rr.getStatus().name();
         rr.setStatus(ReturnRequest.ReturnStatus.reviewing);
         if (req.getStaffNote() != null) rr.setStaffNote(req.getStaffNote());
-        return toResponse(returnRequestRepo.save(rr));
+        ReturnRequest saved = returnRequestRepo.save(rr);
+        auditLogService.log(AuditLog.RETURN_REQUEST, saved.getId(),
+            AuditLog.STATUS_CHANGED, fromStatus, "reviewing", req.getStaffNote(), performedByUserId);
+        return toResponse(saved);
     }
 
     public ReturnRequestResponse decide(Long id, Long staffUserId, ReturnRequestDecisionRequest req) {
@@ -208,6 +214,14 @@ public class ReturnRequestService {
 
         ReturnRequest saved = returnRequestRepo.save(rr);
 
+        String decisionLabel = approved ? "approved" : "rejected";
+        String auditNote = req.getStaffNote();
+        if (approved && "refund".equals(req.getResolution()) && saved.getRefundAmount() != null)
+            auditNote = (auditNote != null ? auditNote + " | " : "") +
+                "Hoàn tiền: " + String.format("%,.0fđ", saved.getRefundAmount().doubleValue());
+        auditLogService.log(AuditLog.RETURN_REQUEST, saved.getId(),
+            AuditLog.STATUS_CHANGED, "reviewing", decisionLabel, auditNote, staffUserId);
+
         // Thông báo email cho khách hàng
         if (saved.getUser() != null && saved.getUser().getEmail() != null) {
             String refundFmt = saved.getRefundAmount() != null
@@ -221,7 +235,7 @@ public class ReturnRequestService {
         return toResponse(saved);
     }
 
-    public ReturnRequestResponse complete(Long id) {
+    public ReturnRequestResponse complete(Long id, Long performedByUserId) {
         ReturnRequest rr = returnRequestRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Yêu cầu đổi/trả"));
         if (rr.getStatus() != ReturnRequest.ReturnStatus.approved || rr.getCompletedAt() != null) {
@@ -249,6 +263,9 @@ public class ReturnRequestService {
 
         ReturnRequest refreshed = returnRequestRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Yêu cầu đổi/trả"));
+
+        auditLogService.log(AuditLog.RETURN_REQUEST, id,
+            AuditLog.STATUS_CHANGED, "approved", "completed", null, performedByUserId);
 
         // Thông báo email hoàn tất
         if (refreshed.getUser() != null && refreshed.getUser().getEmail() != null) {

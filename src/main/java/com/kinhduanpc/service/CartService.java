@@ -150,16 +150,29 @@ public class CartService {
     }
 
     private CartResponse toResponse(Cart cart) {
+        List<Promotion> activePromos = promotionService.getActivePromotions();
+
         List<CartItemDto> items = cart.getItems().stream().map(i -> {
             Product p = i.getProduct();
-            return CartItemDto.builder()
+            CartItemDto.CartItemDtoBuilder builder = CartItemDto.builder()
                 .productId(p.getId()).productName(p.getName())
                 .productSlug(p.getSlug()).thumbnail(p.getThumbnail())
                 .sku(p.getSku()).unitPrice(i.getUnitPrice())
-                .currentPrice(p.getPrice()).quantity(i.getQuantity())
+                .currentPrice(p.getPrice()).originalPrice(p.getOriginalPrice())
+                .quantity(i.getQuantity())
                 .stockQty(p.getStockQty())
-                .subtotal(i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())))
-                .build();
+                .subtotal(i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())));
+
+            PromotionService.PromotionMatch match =
+                promotionService.getBestPromotionForItem(p, i.getUnitPrice(), activePromos);
+            if (match != null) {
+                BigDecimal discountPerUnit = i.getUnitPrice().subtract(match.getPromotionPrice());
+                if (discountPerUnit.compareTo(BigDecimal.ZERO) > 0) {
+                    builder.promotionLabel(match.getLabel())
+                           .promotionDiscount(discountPerUnit.multiply(BigDecimal.valueOf(i.getQuantity())));
+                }
+            }
+            return builder.build();
         }).collect(Collectors.toList());
 
         BigDecimal total = items.stream().map(CartItemDto::getSubtotal)
@@ -172,9 +185,21 @@ public class CartService {
         // thuong CPU/cash bonus o day — chi tinh chinh xac luc dat hang (OrderService.createOrder).
         BigDecimal autoDiscount = promotionService.calculateDiscount(lineItems, total, null).getDiscountAmount();
 
+        // Group items by promotion label for the summary breakdown
+        Map<String, BigDecimal> breakdownMap = new java.util.LinkedHashMap<>();
+        for (CartItemDto item : items) {
+            if (item.getPromotionLabel() != null && item.getPromotionDiscount() != null) {
+                breakdownMap.merge(item.getPromotionLabel(), item.getPromotionDiscount(), BigDecimal::add);
+            }
+        }
+        List<PromotionSummaryDto> promotionBreakdown = breakdownMap.entrySet().stream()
+            .map(e -> new PromotionSummaryDto(e.getKey(), e.getValue()))
+            .toList();
+
         return CartResponse.builder().items(items)
             .totalItems(items.stream().mapToInt(CartItemDto::getQuantity).sum())
-            .totalAmount(total).autoDiscount(autoDiscount).build();
+            .totalAmount(total).autoDiscount(autoDiscount)
+            .promotionBreakdown(promotionBreakdown).build();
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -183,6 +208,13 @@ public class CartService {
         private int totalItems;
         private BigDecimal totalAmount;
         private BigDecimal autoDiscount;
+        private List<PromotionSummaryDto> promotionBreakdown;
+    }
+
+    @Data @AllArgsConstructor @NoArgsConstructor
+    public static class PromotionSummaryDto {
+        private String label;
+        private BigDecimal totalDiscount;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -194,8 +226,11 @@ public class CartService {
         private String sku;
         private BigDecimal unitPrice;
         private BigDecimal currentPrice;
+        private BigDecimal originalPrice;
         private Integer quantity;
         private Integer stockQty;
         private BigDecimal subtotal;
+        private String promotionLabel;
+        private BigDecimal promotionDiscount;
     }
 }

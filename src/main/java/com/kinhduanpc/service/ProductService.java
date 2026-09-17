@@ -7,6 +7,7 @@ import com.kinhduanpc.repository.ProductRepository;
 import com.kinhduanpc.repository.CategoryRepository;
 import com.kinhduanpc.repository.BrandRepository;
 import com.kinhduanpc.repository.ProductRelatedRepository;
+import com.kinhduanpc.service.PromotionService.PromotionMatch;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -26,19 +27,23 @@ public class ProductService {
     private final CategoryRepository categoryRepo;
     private final BrandRepository brandRepo;
     private final ProductRelatedRepository productRelatedRepo;
+    private final PromotionService promotionService;
 
     public Page<ProductResponse> getProducts(Long categoryId, Long brandId,
                                               BigDecimal minPrice, BigDecimal maxPrice,
                                               String sort, int page, int size) {
         Sort sortObj = buildSort(sort);
         Pageable pageable = PageRequest.of(page, size, sortObj);
+        List<Promotion> promos = promotionService.getActivePromotions();
         return productRepo.findWithFilters(categoryId, brandId, minPrice, maxPrice, pageable)
-                          .map(this::toSummaryResponse);
+                          .map(p -> enrichPromotion(toSummaryResponse(p), p, promos));
     }
 
     public Page<ProductResponse> search(String keyword, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return productRepo.searchByKeyword(keyword, pageable).map(this::toSummaryResponse);
+        List<Promotion> promos = promotionService.getActivePromotions();
+        return productRepo.searchByKeyword(keyword, pageable)
+                          .map(p -> enrichPromotion(toSummaryResponse(p), p, promos));
     }
 
     @Transactional
@@ -46,33 +51,37 @@ public class ProductService {
         Product p = productRepo.findBySlug(slug)
             .orElseThrow(() -> AppException.notFound("Sản phẩm"));
         productRepo.incrementViewCount(p.getId());
-        return toDetailResponse(p);
+        return enrichPromotion(toDetailResponse(p), p, promotionService.getActivePromotions());
     }
 
     public ProductResponse getById(Long id) {
         Product p = productRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Sản phẩm"));
-        return toDetailResponse(p);
+        return enrichPromotion(toDetailResponse(p), p, promotionService.getActivePromotions());
     }
 
     public List<ProductResponse> getFeatured(int limit) {
+        List<Promotion> promos = promotionService.getActivePromotions();
         return productRepo.findFeaturedProducts(PageRequest.of(0, limit))
-                          .stream().map(this::toSummaryResponse).toList();
+                          .stream().map(p -> enrichPromotion(toSummaryResponse(p), p, promos)).toList();
     }
 
     public List<ProductResponse> getNewProducts(int limit) {
+        List<Promotion> promos = promotionService.getActivePromotions();
         return productRepo.findNewProducts(PageRequest.of(0, limit))
-                          .stream().map(this::toSummaryResponse).toList();
+                          .stream().map(p -> enrichPromotion(toSummaryResponse(p), p, promos)).toList();
     }
 
     public List<ProductResponse> getBestSellers(int limit) {
+        List<Promotion> promos = promotionService.getActivePromotions();
         return productRepo.findBestSellers(PageRequest.of(0, limit))
-                          .stream().map(this::toSummaryResponse).toList();
+                          .stream().map(p -> enrichPromotion(toSummaryResponse(p), p, promos)).toList();
     }
 
     public List<ProductResponse> getOnSale(int limit) {
+        List<Promotion> promos = promotionService.getActivePromotions();
         return productRepo.findOnSaleProducts(PageRequest.of(0, limit))
-                          .stream().map(this::toSummaryResponse).toList();
+                          .stream().map(p -> enrichPromotion(toSummaryResponse(p), p, promos)).toList();
     }
 
     /**
@@ -81,17 +90,28 @@ public class ProductService {
      */
     public List<ProductResponse> getRelated(Long productId, int limit, boolean curatedOnly) {
         List<ProductRelated> curated = productRelatedRepo.findByProductIdOrderBySortOrderAsc(productId);
+        List<Promotion> promos = promotionService.getActivePromotions();
         if (!curated.isEmpty()) {
             return curated.stream()
                 .limit(limit)
-                .map(pr -> toSummaryResponse(pr.getRelatedProduct()))
+                .map(pr -> enrichPromotion(toSummaryResponse(pr.getRelatedProduct()), pr.getRelatedProduct(), promos))
                 .toList();
         }
         if (curatedOnly) return List.of();
         Product p = productRepo.findById(productId)
             .orElseThrow(() -> AppException.notFound("Sản phẩm"));
         return productRepo.findRelatedProducts(p.getCategory().getId(), productId, PageRequest.of(0, limit))
-                          .stream().map(this::toSummaryResponse).toList();
+                          .stream().map(pr -> enrichPromotion(toSummaryResponse(pr), pr, promos)).toList();
+    }
+
+    private ProductResponse enrichPromotion(ProductResponse resp, Product p, List<Promotion> promos) {
+        if (promos.isEmpty()) return resp;
+        PromotionMatch match = promotionService.getBestPromotionForProduct(p, promos);
+        if (match != null) {
+            resp.setPromotionLabel(match.getLabel());
+            resp.setPromotionPrice(match.getPromotionPrice());
+        }
+        return resp;
     }
 
     @Transactional
@@ -119,7 +139,7 @@ public class ProductService {
         }
 
         productRepo.save(p);
-        return toDetailResponse(p);
+        return enrichPromotion(toDetailResponse(p), p, promotionService.getActivePromotions());
     }
 
     @Transactional
@@ -141,7 +161,8 @@ public class ProductService {
         if (req.getThumbnail() != null) p.setThumbnail(req.getThumbnail());
         if (req.getWarrantyMonths() != null) p.setWarrantyMonths(req.getWarrantyMonths());
 
-        return toDetailResponse(productRepo.save(p));
+        Product saved = productRepo.save(p);
+        return enrichPromotion(toDetailResponse(saved), saved, promotionService.getActivePromotions());
     }
 
     // ---- Mapping ----

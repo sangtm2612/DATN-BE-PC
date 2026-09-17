@@ -24,6 +24,8 @@ public class ProductResponse {
     private BigDecimal originalPrice;
     private Boolean isOnSale;
     private Integer discountPercent;
+    private BigDecimal promotionPrice;
+    private String promotionLabel;
     private Integer stockQty;
     private Integer soldQty;
     private Integer viewCount;

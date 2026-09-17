@@ -25,6 +25,10 @@ public class WarrantyController {
 
     private final WarrantyService warrantyService;
 
+    private Long getUserId(Authentication auth) {
+        return auth != null ? (Long) auth.getPrincipal() : null;
+    }
+
     @GetMapping("/lookup")
     public ResponseEntity<ApiResponse<WarrantyDTO>> lookup(
             @RequestParam(required = false) String serial,
@@ -92,11 +96,11 @@ public class WarrantyController {
     @PatchMapping("/admin/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     public ResponseEntity<ApiResponse<WarrantyDTO>> updateWarranty(
-            @PathVariable Long id,
+            @PathVariable Long id, Authentication auth,
             @RequestParam(required = false) String serialNumber,
             @RequestParam(required = false) String notes) {
         return ResponseEntity.ok(ApiResponse.success(
-            warrantyService.updateWarrantySerial(id, serialNumber, notes), "Cập nhật thành công"));
+            warrantyService.updateWarrantySerial(id, serialNumber, notes, getUserId(auth)), "Cập nhật thành công"));
     }
 
     @GetMapping("/service-requests/technicians")
@@ -108,10 +112,10 @@ public class WarrantyController {
     @PutMapping("/service-requests/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF','TECHNICIAN')")
     public ResponseEntity<ApiResponse<ServiceRequestResponse>> updateServiceRequestStatus(
-            @PathVariable Long id,
+            @PathVariable Long id, Authentication auth,
             @Valid @RequestBody ServiceRequestStatusUpdateRequest request) {
 
-        ServiceRequestResponse response = warrantyService.updateServiceRequestStatus(id, request);
+        ServiceRequestResponse response = warrantyService.updateServiceRequestStatus(id, request, getUserId(auth));
         return ResponseEntity.ok(ApiResponse.success(response, "Đã cập nhật trạng thái"));
     }
 

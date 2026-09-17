@@ -154,6 +154,35 @@ public class PromotionService {
         private BigDecimal cashBonus;
     }
 
+    /**
+     * Tìm promotion cho discount tốt nhất cho một sản phẩm đơn lẻ.
+     * Dùng để hiển thị giá khuyến mãi trên trang listing/detail sản phẩm.
+     */
+    public PromotionMatch getBestPromotionForProduct(Product product, List<Promotion> activePromotions) {
+        return getBestPromotionForItem(product, product.getPrice(), activePromotions);
+    }
+
+    public PromotionMatch getBestPromotionForItem(Product product, BigDecimal unitPrice, List<Promotion> activePromotions) {
+        BigDecimal bestDiscount = BigDecimal.ZERO;
+        Promotion bestPromo = null;
+        for (Promotion p : activePromotions) {
+            if (!matchesScope(p, product)) continue;
+            BigDecimal d = calcLineDiscount(p, unitPrice);
+            if (d.compareTo(bestDiscount) > 0) {
+                bestDiscount = d;
+                bestPromo = p;
+            }
+        }
+        if (bestPromo == null) return null;
+        return new PromotionMatch(bestPromo.getName(), unitPrice.subtract(bestDiscount));
+    }
+
+    @lombok.Data @lombok.AllArgsConstructor
+    public static class PromotionMatch {
+        private String label;
+        private BigDecimal promotionPrice;
+    }
+
     // ─── Admin CRUD ─────────────────────────────────────────────
 
     public List<PromotionResponse> getActiveForDisplay() {

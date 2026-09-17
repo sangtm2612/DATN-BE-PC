@@ -64,9 +64,10 @@ public class ReturnRequestController {
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @Operation(summary = "Admin: Chuyển yêu cầu sang trạng thái đang xem xét")
     public ResponseEntity<ApiResponse<ReturnRequestResponse>> review(
-            @PathVariable Long id, @RequestBody(required = false) ReturnRequestReviewRequest req) {
+            @PathVariable Long id, Authentication auth,
+            @RequestBody(required = false) ReturnRequestReviewRequest req) {
         return ResponseEntity.ok(ApiResponse.success(
-            returnRequestService.review(id, req != null ? req : new ReturnRequestReviewRequest()),
+            returnRequestService.review(id, req != null ? req : new ReturnRequestReviewRequest(), getUserId(auth)),
             "Đã chuyển sang xem xét"));
     }
 
@@ -82,8 +83,9 @@ public class ReturnRequestController {
     @PutMapping("/return-requests/{id}/complete")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @Operation(summary = "Admin: Hoàn tất yêu cầu đổi/trả (áp dụng hoàn tiền nếu có)")
-    public ResponseEntity<ApiResponse<ReturnRequestResponse>> complete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ReturnRequestResponse>> complete(
+            @PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(ApiResponse.success(
-            returnRequestService.complete(id), "Đã hoàn tất yêu cầu đổi/trả"));
+            returnRequestService.complete(id, getUserId(auth)), "Đã hoàn tất yêu cầu đổi/trả"));
     }
 }

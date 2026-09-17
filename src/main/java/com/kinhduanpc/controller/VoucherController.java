@@ -74,8 +74,15 @@ public class VoucherController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<VoucherDTO>> update(
-            @PathVariable Long id, 
+            @PathVariable Long id,
             @Valid @RequestBody VoucherRequest request) {
         return ResponseEntity.ok(ApiResponse.success(voucherService.update(id, request)));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
+        voucherService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success("Đã xóa voucher"));
     }
 }

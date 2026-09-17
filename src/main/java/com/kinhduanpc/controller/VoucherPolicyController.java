@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,10 @@ import java.util.List;
 public class VoucherPolicyController {
 
     private final VoucherPolicyService policyService;
+
+    private Long getUserId(Authentication auth) {
+        return auth != null ? (Long) auth.getPrincipal() : null;
+    }
 
     @GetMapping
     @Operation(summary = "Lấy tất cả chính sách voucher")
@@ -38,22 +43,22 @@ public class VoucherPolicyController {
     @PostMapping
     @Operation(summary = "Tạo chính sách phân phối voucher mới")
     public ResponseEntity<ApiResponse<VoucherPolicyResponse>> create(
-            @Valid @RequestBody VoucherPolicyRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(policyService.create(request)));
+            Authentication auth, @Valid @RequestBody VoucherPolicyRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(policyService.create(request, getUserId(auth))));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Cập nhật chính sách voucher")
     public ResponseEntity<ApiResponse<VoucherPolicyResponse>> update(
-            @PathVariable Long id,
+            @PathVariable Long id, Authentication auth,
             @Valid @RequestBody VoucherPolicyRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(policyService.update(id, request)));
+        return ResponseEntity.ok(ApiResponse.success(policyService.update(id, request, getUserId(auth))));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa chính sách voucher")
-    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
-        policyService.delete(id);
+    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id, Authentication auth) {
+        policyService.delete(id, getUserId(auth));
         return ResponseEntity.ok(ApiResponse.success("Đã xóa chính sách voucher"));
     }
 }

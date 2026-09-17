@@ -28,6 +28,7 @@ public class WarrantyService {
     private final ServiceMediaRepository serviceMediaRepo;
     private final UserRepository userRepo;
     private final EmailService emailService;
+    private final AuditLogService auditLogService;
 
     private static final AtomicInteger sequence = new AtomicInteger(1);
 
@@ -155,12 +156,19 @@ public class WarrantyService {
         return pagedWarranties.map(this::toWarrantyDTO);
     }
 
-    public WarrantyDTO updateWarrantySerial(Long id, String serialNumber, String notes) {
+    public WarrantyDTO updateWarrantySerial(Long id, String serialNumber, String notes, Long performedByUserId) {
         Warranty warranty = warrantyRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Thông tin bảo hành"));
         if (serialNumber != null && !serialNumber.isBlank()) warranty.setSerialNumber(serialNumber.trim());
         if (notes != null) warranty.setNotes(notes);
-        return toWarrantyDTO(warrantyRepo.save(warranty));
+        WarrantyDTO result = toWarrantyDTO(warrantyRepo.save(warranty));
+        String noteText = (serialNumber != null && !serialNumber.isBlank() ? "Serial: " + serialNumber : "") +
+            (notes != null && !notes.isBlank() ? " | Ghi chú: " + notes : "");
+        if (!noteText.isBlank()) {
+            auditLogService.log(AuditLog.WARRANTY, id,
+                AuditLog.SERIAL_UPDATED, null, noteText.strip(), null, performedByUserId);
+        }
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -171,7 +179,7 @@ public class WarrantyService {
     }
 
     public ServiceRequestResponse updateServiceRequestStatus(
-            Long id, ServiceRequestStatusUpdateRequest request) {
+            Long id, ServiceRequestStatusUpdateRequest request, Long performedByUserId) {
         ServiceRequest sr = serviceRequestRepo.findById(id)
                 .orElseThrow(() -> AppException.notFound("Yêu cầu sửa chữa"));
 
@@ -194,6 +202,7 @@ public class WarrantyService {
                     "Khách hàng chưa duyệt báo giá sửa chữa, chưa thể chuyển sang trạng thái này");
         }
 
+        ServiceRequest.ServiceStatus oldStatus = sr.getStatus();
         sr.setStatus(newStatus);
         if (request.getDiagnosis() != null) sr.setDiagnosis(request.getDiagnosis());
         if (request.getRepairCost() != null) sr.setRepairCost(request.getRepairCost());
@@ -203,20 +212,54 @@ public class WarrantyService {
 
         ServiceRequest saved = serviceRequestRepo.save(sr);
 
-        // Email thông báo cho khách tại các mốc quan trọng
-        boolean shouldNotify = Set.of(
-            ServiceRequest.ServiceStatus.diagnosing,
-            ServiceRequest.ServiceStatus.done,
-            ServiceRequest.ServiceStatus.returned
-        ).contains(newStatus) || (request.getRepairCost() != null && request.getRepairCost().compareTo(BigDecimal.ZERO) > 0);
+        // Ghi audit log cho từng thay đổi
+        if (oldStatus != newStatus) {
+            auditLogService.log(AuditLog.SERVICE_REQUEST, saved.getId(),
+                AuditLog.STATUS_CHANGED, oldStatus.name(), newStatus.name(), null, performedByUserId);
+        }
+        if (request.getDiagnosis() != null && !request.getDiagnosis().isBlank()) {
+            auditLogService.log(AuditLog.SERVICE_REQUEST, saved.getId(),
+                AuditLog.DIAGNOSIS_SET, null, request.getDiagnosis(), null, performedByUserId);
+        }
+        if (request.getRepairCost() != null && request.getRepairCost().compareTo(BigDecimal.ZERO) > 0) {
+            auditLogService.log(AuditLog.SERVICE_REQUEST, saved.getId(),
+                AuditLog.COST_QUOTED, null,
+                String.format("%,.0fđ", request.getRepairCost().doubleValue()),
+                null, performedByUserId);
+        }
+        if (request.getTechnicianId() != null) {
+            String techName = userRepo.findById(request.getTechnicianId())
+                .map(User::getFullName).orElse(String.valueOf(request.getTechnicianId()));
+            auditLogService.log(AuditLog.SERVICE_REQUEST, saved.getId(),
+                AuditLog.TECHNICIAN_ASSIGNED, null, techName, null, performedByUserId);
+        }
 
-        if (shouldNotify && saved.getUser() != null && saved.getUser().getEmail() != null) {
-            String repairCostFmt = saved.getRepairCost() != null && saved.getRepairCost().compareTo(BigDecimal.ZERO) > 0
-                ? String.format("%,.0fđ", saved.getRepairCost().doubleValue()) : null;
-            emailService.sendServiceRequestUpdate(
-                saved.getUser().getEmail(), saved.getUser().getFullName(),
-                saved.getServiceCode(), newStatus.name(),
-                saved.getDiagnosis(), repairCostFmt);
+        // Email thông báo cho khách
+        if (saved.getUser() != null && saved.getUser().getEmail() != null) {
+            String userEmail = saved.getUser().getEmail();
+            String userName  = saved.getUser().getFullName();
+
+            boolean isNewCostQuote = request.getRepairCost() != null
+                && request.getRepairCost().compareTo(BigDecimal.ZERO) > 0;
+
+            if (isNewCostQuote) {
+                // Email báo giá riêng — subject rõ ràng, nội dung có CTA xác nhận
+                String costFmt = String.format("%,.0fđ", saved.getRepairCost().doubleValue());
+                emailService.sendRepairCostQuote(
+                    userEmail, userName,
+                    saved.getServiceCode(), saved.getProductName(),
+                    saved.getDiagnosis(), costFmt);
+            } else if (Set.of(
+                    ServiceRequest.ServiceStatus.diagnosing,
+                    ServiceRequest.ServiceStatus.done,
+                    ServiceRequest.ServiceStatus.returned
+                ).contains(newStatus)) {
+                // Email cập nhật trạng thái thông thường
+                emailService.sendServiceRequestUpdate(
+                    userEmail, userName,
+                    saved.getServiceCode(), newStatus.name(),
+                    saved.getDiagnosis());
+            }
         }
 
         return toServiceRequestResponse(saved);

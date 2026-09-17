@@ -28,6 +28,7 @@ public class VoucherPolicyService {
     private final UserRepository userRepo;
     private final OrderRepository orderRepo;
     private final NotificationService notificationService;
+    private final AuditLogService auditLogService;
 
     // ==================== ADMIN CRUD ====================
 
@@ -45,7 +46,7 @@ public class VoucherPolicyService {
         return toResponse(policy);
     }
 
-    public VoucherPolicyResponse create(VoucherPolicyRequest req) {
+    public VoucherPolicyResponse create(VoucherPolicyRequest req, Long performedByUserId) {
         if (req.getEndDate().isBefore(req.getStartDate())) {
             throw AppException.badRequest("INVALID_DATES", "Ngày kết thúc phải sau ngày bắt đầu");
         }
@@ -79,10 +80,13 @@ public class VoucherPolicyService {
             .isActive(req.getIsActive() != null ? req.getIsActive() : true)
             .build();
 
-        return toResponse(policyRepo.save(policy));
+        VoucherPolicyResponse result = toResponse(policyRepo.save(policy));
+        auditLogService.log(AuditLog.VOUCHER_POLICY, result.getId(),
+            AuditLog.POLICY_CREATED, null, req.getName(), null, performedByUserId);
+        return result;
     }
 
-    public VoucherPolicyResponse update(Long id, VoucherPolicyRequest req) {
+    public VoucherPolicyResponse update(Long id, VoucherPolicyRequest req, Long performedByUserId) {
         VoucherPolicy policy = policyRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Chính sách voucher"));
 
@@ -110,12 +114,17 @@ public class VoucherPolicyService {
         if (req.getOnePerUser() != null) policy.setOnePerUser(req.getOnePerUser());
         if (req.getIsActive() != null) policy.setIsActive(req.getIsActive());
 
-        return toResponse(policyRepo.save(policy));
+        VoucherPolicyResponse result = toResponse(policyRepo.save(policy));
+        auditLogService.log(AuditLog.VOUCHER_POLICY, id,
+            AuditLog.POLICY_UPDATED, null, req.getName(), null, performedByUserId);
+        return result;
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, Long performedByUserId) {
         VoucherPolicy policy = policyRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Chính sách voucher"));
+        auditLogService.log(AuditLog.VOUCHER_POLICY, id,
+            AuditLog.POLICY_DELETED, policy.getName(), null, null, performedByUserId);
         policyRepo.delete(policy);
     }
 

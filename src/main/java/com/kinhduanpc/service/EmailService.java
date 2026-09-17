@@ -245,31 +245,62 @@ public class EmailService {
 
     @Async
     public void sendServiceRequestUpdate(String to, String name, String serviceCode,
-            String status, String diagnosis, String repairCost) {
+            String status, String diagnosis) {
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromEmail);
             msg.setTo(to);
             String statusLabel = switch (status) {
-                case "diagnosing" -> "Đang chẩn đoán";
-                case "repairing" -> "Đang sửa chữa";
-                case "waiting_part" -> "Chờ linh kiện";
-                case "done" -> "Sửa chữa hoàn tất";
-                case "returned" -> "Đã trả máy";
+                case "received"      -> "Đã tiếp nhận";
+                case "diagnosing"    -> "Đang chẩn đoán";
+                case "repairing"     -> "Đang sửa chữa";
+                case "waiting_part"  -> "Chờ linh kiện";
+                case "done"          -> "Sửa chữa hoàn tất";
+                case "returned"      -> "Đã trả máy";
                 default -> status;
             };
-            msg.setSubject("Cập nhật yêu cầu sửa chữa " + serviceCode + " - " + statusLabel);
+            msg.setSubject("[KinhDuanPC] Yêu cầu sửa chữa " + serviceCode + " — " + statusLabel);
             StringBuilder sb = new StringBuilder("Xin chào ").append(name).append(",\n\n");
-            sb.append("Yêu cầu sửa chữa ").append(serviceCode).append(" đã được cập nhật: ").append(statusLabel).append("\n");
-            if (diagnosis != null && !diagnosis.isBlank()) sb.append("Chẩn đoán: ").append(diagnosis).append("\n");
-            if (repairCost != null) sb.append("Chi phí sửa chữa: ").append(repairCost).append(" (cần xác nhận từ bạn)\n");
-            if ("done".equals(status)) sb.append("Thiết bị của bạn đã được sửa chữa xong. Vui lòng liên hệ để nhận máy.\n");
-            if ("returned".equals(status)) sb.append("Thiết bị đã được trả lại cho bạn.\n");
+            sb.append("Yêu cầu sửa chữa ").append(serviceCode).append(" vừa được cập nhật trạng thái: ")
+              .append(statusLabel).append("\n");
+            if (diagnosis != null && !diagnosis.isBlank())
+                sb.append("\nKết quả chẩn đoán: ").append(diagnosis).append("\n");
+            if ("done".equals(status))
+                sb.append("\nThiết bị của bạn đã được sửa xong. Vui lòng liên hệ cửa hàng để sắp xếp nhận máy.\n");
+            if ("returned".equals(status))
+                sb.append("\nThiết bị đã được bàn giao lại cho bạn. Cảm ơn bạn đã tin tưởng KinhDuanPC!\n");
             sb.append("\nXem chi tiết tại: ").append(frontendUrl).append("/account/warranties");
+            sb.append("\n\nTrân trọng,\nĐội ngũ KinhDuanPC");
             msg.setText(sb.toString());
             mailSender.send(msg);
         } catch (Exception e) {
             log.error("Failed to send service request update email: {}", e.getMessage());
+        }
+    }
+
+    @Async
+    public void sendRepairCostQuote(String to, String name, String serviceCode,
+            String productName, String diagnosis, String repairCost) {
+        try {
+            SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom(fromEmail);
+            msg.setTo(to);
+            msg.setSubject("[KinhDuanPC] Báo giá sửa chữa " + serviceCode + " — " + repairCost + " · Cần xác nhận");
+            StringBuilder sb = new StringBuilder("Xin chào ").append(name).append(",\n\n");
+            sb.append("Kỹ thuật viên đã hoàn thành chẩn đoán thiết bị của bạn và gửi báo giá sửa chữa:\n\n");
+            sb.append("  Mã yêu cầu : ").append(serviceCode).append("\n");
+            sb.append("  Sản phẩm   : ").append(productName).append("\n");
+            if (diagnosis != null && !diagnosis.isBlank())
+                sb.append("  Chẩn đoán  : ").append(diagnosis).append("\n");
+            sb.append("  Chi phí    : ").append(repairCost).append("\n\n");
+            sb.append("Vui lòng đăng nhập và xác nhận hoặc từ chối báo giá này:\n");
+            sb.append(frontendUrl).append("/account/warranties\n\n");
+            sb.append("Lưu ý: Nếu bạn không xác nhận trong vòng 7 ngày, yêu cầu có thể bị hủy.\n");
+            sb.append("\nTrân trọng,\nĐội ngũ KinhDuanPC");
+            msg.setText(sb.toString());
+            mailSender.send(msg);
+        } catch (Exception e) {
+            log.error("Failed to send repair cost quote email: {}", e.getMessage());
         }
     }
 

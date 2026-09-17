@@ -48,4 +48,6 @@ public interface UserVoucherRepository extends JpaRepository<UserVoucher, Long> 
      * Check user đã có voucher này chưa
      */
     boolean existsByUserIdAndVoucherId(Long userId, Long voucherId);
+
+    long countByVoucherId(Long voucherId);
 }

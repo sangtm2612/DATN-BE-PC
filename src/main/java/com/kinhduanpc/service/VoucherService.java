@@ -238,6 +238,17 @@ public class VoucherService {
         return toDTO(updated);
     }
 
+    public void delete(Long id) {
+        Voucher voucher = voucherRepo.findById(id)
+            .orElseThrow(() -> AppException.notFound("Voucher"));
+        long usedCount = userVoucherRepo.countByVoucherId(id);
+        if (usedCount > 0) {
+            throw AppException.badRequest("VOUCHER_IN_USE",
+                "Không thể xóa voucher đã có " + usedCount + " lượt sử dụng");
+        }
+        voucherRepo.delete(voucher);
+    }
+
     // Mapping method
     private VoucherDTO toDTO(Voucher voucher) {
         return VoucherDTO.builder()
