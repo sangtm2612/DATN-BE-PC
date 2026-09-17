@@ -19,4 +19,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
            "LEFT JOIN FETCH ch.parent " +
            "WHERE c.parent IS NULL AND c.isActive = true ORDER BY c.sortOrder, ch.sortOrder")
     List<Category> findRootCategories();
+
+    boolean existsByParentId(Long parentId);
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.category.id = :categoryId")
+    long countProductsByCategory(@org.springframework.data.repository.query.Param("categoryId") Long categoryId);
 }

@@ -6,12 +6,14 @@ import com.kinhduanpc.service.WarrantyService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -68,10 +70,33 @@ public class WarrantyController {
     @PreAuthorize("hasAnyRole('ADMIN','STAFF','TECHNICIAN')")
     public ResponseEntity<ApiResponse<List<ServiceRequestResponse>>> getAdminServiceRequests(
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long storeId) {
+            @RequestParam(required = false) Long storeId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
 
+        Page<ServiceRequestResponse> result = warrantyService.getAdminServiceRequests(status, storeId, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result.getContent(),
+            new ApiResponse.PageMeta(page, size, result.getTotalElements(), result.getTotalPages())));
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<List<WarrantyDTO>>> getAdminWarranties(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<WarrantyDTO> result = warrantyService.getAdminWarranties(page, size);
+        return ResponseEntity.ok(ApiResponse.success(result.getContent(),
+            new ApiResponse.PageMeta(page, size, result.getTotalElements(), result.getTotalPages())));
+    }
+
+    @PatchMapping("/admin/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    public ResponseEntity<ApiResponse<WarrantyDTO>> updateWarranty(
+            @PathVariable Long id,
+            @RequestParam(required = false) String serialNumber,
+            @RequestParam(required = false) String notes) {
         return ResponseEntity.ok(ApiResponse.success(
-                warrantyService.getAdminServiceRequests(status, storeId)));
+            warrantyService.updateWarrantySerial(id, serialNumber, notes), "Cập nhật thành công"));
     }
 
     @GetMapping("/service-requests/technicians")

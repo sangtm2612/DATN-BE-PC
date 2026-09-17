@@ -1,6 +1,8 @@
 package com.kinhduanpc.repository;
 
 import com.kinhduanpc.entity.ReturnRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,6 +24,14 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
 
     @Query("SELECT rr FROM ReturnRequest rr JOIN FETCH rr.user WHERE rr.status = :status ORDER BY rr.createdAt DESC")
     List<ReturnRequest> findByStatusOrderByCreatedAtDesc(ReturnRequest.ReturnStatus status);
+
+    @Query(value = "SELECT rr FROM ReturnRequest rr JOIN FETCH rr.user ORDER BY rr.createdAt DESC",
+           countQuery = "SELECT COUNT(rr) FROM ReturnRequest rr")
+    Page<ReturnRequest> findAllPaged(Pageable pageable);
+
+    @Query(value = "SELECT rr FROM ReturnRequest rr JOIN FETCH rr.user WHERE rr.status = :status ORDER BY rr.createdAt DESC",
+           countQuery = "SELECT COUNT(rr) FROM ReturnRequest rr WHERE rr.status = :status")
+    Page<ReturnRequest> findByStatusPaged(@Param("status") ReturnRequest.ReturnStatus status, Pageable pageable);
 
     /**
      * Chuyen trang thai approved -> completed 1 cach nguyen tu (dieu kien ngay trong WHERE),

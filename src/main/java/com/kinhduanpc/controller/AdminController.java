@@ -9,10 +9,12 @@ import com.kinhduanpc.service.ProductService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -43,5 +45,20 @@ public class AdminController {
         List<ProductResponse> products = productRepo.findLowStockProducts()
             .stream().map(productService::toSummaryResponse).toList();
         return ResponseEntity.ok(ApiResponse.success(products));
+    }
+
+    @GetMapping("/stats/top-products")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> getTopProducts(
+            @RequestParam(defaultValue = "5") int limit) {
+        List<ProductResponse> products = productRepo.findBestSellers(PageRequest.of(0, limit))
+            .stream().map(productService::toSummaryResponse).toList();
+        return ResponseEntity.ok(ApiResponse.success(products));
+    }
+
+    @GetMapping("/stats/report")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getRevenueReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getRevenueReport(from, to)));
     }
 }

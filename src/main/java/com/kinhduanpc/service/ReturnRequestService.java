@@ -17,6 +17,10 @@ import com.kinhduanpc.repository.ReturnRequestItemRepository;
 import com.kinhduanpc.repository.ReturnRequestRepository;
 import com.kinhduanpc.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +43,7 @@ public class ReturnRequestService {
     private final ReturnMediaRepository returnMediaRepo;
     private final OrderRepository orderRepo;
     private final UserRepository userRepo;
+    private final EmailService emailService;
 
     private static final Set<String> ALLOWED_REASONS = Set.of(
         "defective", "wrong_item", "damaged_delivery", "not_satisfied");
@@ -130,19 +135,21 @@ public class ReturnRequestService {
         return toResponseList(requests);
     }
 
-    public List<ReturnRequestResponse> getAdminReturnRequests(String status) {
-        List<ReturnRequest> requests;
-        if (status != null) {
+    public Page<ReturnRequestResponse> getAdminReturnRequests(String status, int page, int size) {
+        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<ReturnRequest> pagedRequests;
+        if (status != null && !status.isBlank()) {
             try {
-                requests = returnRequestRepo.findByStatusOrderByCreatedAtDesc(
-                    ReturnRequest.ReturnStatus.valueOf(status));
+                pagedRequests = returnRequestRepo.findByStatusPaged(
+                    ReturnRequest.ReturnStatus.valueOf(status), pageable);
             } catch (IllegalArgumentException e) {
                 throw AppException.badRequest("INVALID_STATUS", "Trạng thái không hợp lệ");
             }
         } else {
-            requests = returnRequestRepo.findAllByOrderByCreatedAtDesc();
+            pagedRequests = returnRequestRepo.findAllPaged(pageable);
         }
-        return toResponseList(requests);
+        List<ReturnRequestResponse> content = toResponseList(pagedRequests.getContent());
+        return new PageImpl<>(content, pageable, pagedRequests.getTotalElements());
     }
 
     public ReturnRequestResponse review(Long id, ReturnRequestReviewRequest req) {
@@ -199,7 +206,19 @@ public class ReturnRequestService {
         rr.setReviewedBy(userRepo.findById(staffUserId).orElse(null));
         rr.setReviewedAt(LocalDateTime.now());
 
-        return toResponse(returnRequestRepo.save(rr));
+        ReturnRequest saved = returnRequestRepo.save(rr);
+
+        // Thông báo email cho khách hàng
+        if (saved.getUser() != null && saved.getUser().getEmail() != null) {
+            String refundFmt = saved.getRefundAmount() != null
+                ? String.format("%,.0fđ", saved.getRefundAmount().doubleValue()) : null;
+            emailService.sendReturnRequestUpdate(
+                saved.getUser().getEmail(), saved.getUser().getFullName(),
+                saved.getReturnCode(), req.getDecision(),
+                saved.getResolution(), refundFmt, req.getStaffNote());
+        }
+
+        return toResponse(saved);
     }
 
     public ReturnRequestResponse complete(Long id) {
@@ -230,6 +249,17 @@ public class ReturnRequestService {
 
         ReturnRequest refreshed = returnRequestRepo.findById(id)
             .orElseThrow(() -> AppException.notFound("Yêu cầu đổi/trả"));
+
+        // Thông báo email hoàn tất
+        if (refreshed.getUser() != null && refreshed.getUser().getEmail() != null) {
+            String refundFmt = refreshed.getRefundAmount() != null
+                ? String.format("%,.0fđ", refreshed.getRefundAmount().doubleValue()) : null;
+            emailService.sendReturnRequestUpdate(
+                refreshed.getUser().getEmail(), refreshed.getUser().getFullName(),
+                refreshed.getReturnCode(), "completed",
+                refreshed.getResolution(), refundFmt, refreshed.getStaffNote());
+        }
+
         return toResponse(refreshed);
     }
 

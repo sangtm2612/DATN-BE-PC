@@ -110,6 +110,24 @@ public class CategoryService {
         return CategoryResponse.from(updated);
     }
 
+    public void delete(Long id) {
+        Category category = categoryRepo.findById(id)
+            .orElseThrow(() -> AppException.notFound("Danh mục"));
+
+        if (categoryRepo.existsByParentId(id)) {
+            throw AppException.badRequest("CATEGORY_HAS_CHILDREN",
+                "Không thể xóa danh mục đang có danh mục con. Hãy xóa hoặc chuyển danh mục con trước.");
+        }
+
+        long productCount = categoryRepo.countProductsByCategory(id);
+        if (productCount > 0) {
+            throw AppException.badRequest("CATEGORY_HAS_PRODUCTS",
+                "Không thể xóa danh mục đang có " + productCount + " sản phẩm. Hãy chuyển sản phẩm sang danh mục khác trước.");
+        }
+
+        categoryRepo.delete(category);
+    }
+
     private String generateSlug(String name) {
         return name.toLowerCase()
             .replaceAll("[àáạảãâầấậẩẫăằắặẳẵ]", "a")

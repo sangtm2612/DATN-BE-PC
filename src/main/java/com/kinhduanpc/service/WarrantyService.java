@@ -13,6 +13,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @Service
 @Transactional
@@ -23,6 +27,7 @@ public class WarrantyService {
     private final ServiceRequestRepository serviceRequestRepo;
     private final ServiceMediaRepository serviceMediaRepo;
     private final UserRepository userRepo;
+    private final EmailService emailService;
 
     private static final AtomicInteger sequence = new AtomicInteger(1);
 
@@ -67,11 +72,14 @@ public class WarrantyService {
         if (request.getWarrantyId() != null) {
             warranty = warrantyRepo.findById(request.getWarrantyId())
                     .orElseThrow(() -> AppException.notFound("Thông tin bảo hành"));
-            
             if (!warranty.getUser().getId().equals(userId)) {
                 throw AppException.forbidden("Không có quyền sử dụng bảo hành này");
             }
-            
+            if (!"active".equals(warranty.getStatus()) && !"in_service".equals(warranty.getStatus())) {
+                String statusLabel = "expired".equals(warranty.getStatus()) ? "đã hết hạn" : "đã bị vô hiệu";
+                throw AppException.badRequest("WARRANTY_NOT_ACTIVE",
+                    "Bảo hành này " + statusLabel + " và không thể dùng để gửi yêu cầu sửa chữa");
+            }
             productName = warranty.getProduct().getName();
             serialNumber = warranty.getSerialNumber();
         } else if (productName == null || productName.isBlank()) {
@@ -121,27 +129,38 @@ public class WarrantyService {
     }
 
     @Transactional(readOnly = true)
-    public List<ServiceRequestResponse> getAdminServiceRequests(String status, Long storeId) {
-        List<ServiceRequest> requests;
-        
-        if (status != null) {
+    public Page<ServiceRequestResponse> getAdminServiceRequests(String status, Long storeId, int page, int size) {
+        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<ServiceRequest> pagedRequests;
+        if (status != null && !status.isBlank()) {
             try {
-                ServiceRequest.ServiceStatus serviceStatus = ServiceRequest.ServiceStatus.valueOf(status);
-                requests = serviceRequestRepo.findByStatusOrderByCreatedAtDesc(serviceStatus);
+                pagedRequests = serviceRequestRepo.findByStatusPaged(
+                    ServiceRequest.ServiceStatus.valueOf(status), pageable);
             } catch (IllegalArgumentException e) {
                 throw AppException.badRequest("INVALID_STATUS", "Trạng thái không hợp lệ");
             }
         } else {
-            requests = serviceRequestRepo.findAllByOrderByCreatedAtDesc();
+            pagedRequests = serviceRequestRepo.findAllPaged(pageable);
         }
+        List<ServiceRequest> content = storeId != null
+            ? pagedRequests.getContent().stream().filter(r -> storeId.equals(r.getStoreId())).toList()
+            : pagedRequests.getContent();
+        return new PageImpl<>(toServiceRequestResponseList(content), pageable, pagedRequests.getTotalElements());
+    }
 
-        if (storeId != null) {
-            requests = requests.stream()
-                    .filter(r -> storeId.equals(r.getStoreId()))
-                    .toList();
-        }
+    @Transactional(readOnly = true)
+    public Page<WarrantyDTO> getAdminWarranties(int page, int size) {
+        var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Warranty> pagedWarranties = warrantyRepo.findAllWithDetails(pageable);
+        return pagedWarranties.map(this::toWarrantyDTO);
+    }
 
-        return toServiceRequestResponseList(requests);
+    public WarrantyDTO updateWarrantySerial(Long id, String serialNumber, String notes) {
+        Warranty warranty = warrantyRepo.findById(id)
+            .orElseThrow(() -> AppException.notFound("Thông tin bảo hành"));
+        if (serialNumber != null && !serialNumber.isBlank()) warranty.setSerialNumber(serialNumber.trim());
+        if (notes != null) warranty.setNotes(notes);
+        return toWarrantyDTO(warrantyRepo.save(warranty));
     }
 
     @Transactional(readOnly = true)
@@ -182,7 +201,25 @@ public class WarrantyService {
         if (newStatus == ServiceRequest.ServiceStatus.done) sr.setCompletedAt(LocalDateTime.now());
         if (newStatus == ServiceRequest.ServiceStatus.returned) sr.setReturnedAt(LocalDateTime.now());
 
-        return toServiceRequestResponse(serviceRequestRepo.save(sr));
+        ServiceRequest saved = serviceRequestRepo.save(sr);
+
+        // Email thông báo cho khách tại các mốc quan trọng
+        boolean shouldNotify = Set.of(
+            ServiceRequest.ServiceStatus.diagnosing,
+            ServiceRequest.ServiceStatus.done,
+            ServiceRequest.ServiceStatus.returned
+        ).contains(newStatus) || (request.getRepairCost() != null && request.getRepairCost().compareTo(BigDecimal.ZERO) > 0);
+
+        if (shouldNotify && saved.getUser() != null && saved.getUser().getEmail() != null) {
+            String repairCostFmt = saved.getRepairCost() != null && saved.getRepairCost().compareTo(BigDecimal.ZERO) > 0
+                ? String.format("%,.0fđ", saved.getRepairCost().doubleValue()) : null;
+            emailService.sendServiceRequestUpdate(
+                saved.getUser().getEmail(), saved.getUser().getFullName(),
+                saved.getServiceCode(), newStatus.name(),
+                saved.getDiagnosis(), repairCostFmt);
+        }
+
+        return toServiceRequestResponse(saved);
     }
 
     public ServiceRequestResponse approveRepair(Long id, Long userId, boolean approved) {
@@ -216,11 +253,16 @@ public class WarrantyService {
                 .warrantyExpiresAt(warranty.getWarrantyExpiresAt())
                 .warrantyMonths(warranty.getWarrantyMonths())
                 .status(warranty.getStatus())
+                .notes(warranty.getNotes())
+                .orderItemId(warranty.getOrderItemId())
                 .product(WarrantyDTO.ProductInfo.builder()
                         .id(warranty.getProduct().getId())
                         .name(warranty.getProduct().getName())
                         .thumbnail(warranty.getProduct().getThumbnail())
                         .build())
+                .userId(warranty.getUser() != null ? warranty.getUser().getId() : null)
+                .userName(warranty.getUser() != null ? warranty.getUser().getFullName() : null)
+                .userPhone(warranty.getUser() != null ? warranty.getUser().getPhone() : null)
                 .build();
     }
 

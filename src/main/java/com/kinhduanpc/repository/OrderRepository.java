@@ -101,6 +101,33 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         @Param("to")   LocalDateTime to
     );
 
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status NOT IN ('cancelled','refunded') AND o.createdAt BETWEEN :from AND :to")
+    Long countActiveByDateRange(
+        @Param("from") LocalDateTime from,
+        @Param("to")   LocalDateTime to
+    );
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND o.createdAt BETWEEN :from AND :to")
+    Long countByStatusAndDateRange(
+        @Param("status") Order.OrderStatus status,
+        @Param("from") LocalDateTime from,
+        @Param("to")   LocalDateTime to
+    );
+
+    @Query("SELECT o.status, COUNT(o) FROM Order o GROUP BY o.status")
+    List<Object[]> countGroupByStatus();
+
+    @Query("""
+        SELECT o.paymentMethod, SUM(o.totalAmount - COALESCE(o.refundAmount, 0))
+        FROM Order o WHERE o.status = 'completed'
+          AND o.createdAt BETWEEN :from AND :to
+        GROUP BY o.paymentMethod
+        """)
+    List<Object[]> revenueByPaymentMethod(
+        @Param("from") LocalDateTime from,
+        @Param("to")   LocalDateTime to
+    );
+
     @Query("SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId AND o.status = 'completed'")
     int countCompletedByUserId(@Param("userId") Long userId);
 
@@ -114,6 +141,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         Order.OrderStatus status,
         LocalDateTime from,
         LocalDateTime to
+    );
+
+    @Query("SELECT o FROM Order o WHERE o.createdAt >= :from AND o.createdAt < :to ORDER BY o.createdAt DESC")
+    List<Order> findAllInDateRange(
+        @Param("from") LocalDateTime from,
+        @Param("to")   LocalDateTime to
     );
 
     /**

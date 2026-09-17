@@ -22,6 +22,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByPhone(String phone);
     java.util.List<User> findByRole(User.UserRole role);
     long countByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
+    long countByRole(User.UserRole role);
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.createdAt BETWEEN :from AND :to")
+    long countByRoleAndDateRange(
+        @Param("role") User.UserRole role,
+        @Param("from") LocalDateTime from,
+        @Param("to")   LocalDateTime to
+    );
 
     @Query("SELECT u FROM User u WHERE u.email = :credential OR u.phone = :credential")
     Optional<User> findByEmailOrPhone(@Param("credential") String credential);

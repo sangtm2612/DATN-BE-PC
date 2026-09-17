@@ -16,7 +16,12 @@ public class WarrantyDTO {
     private LocalDate warrantyExpiresAt;
     private Integer warrantyMonths;
     private String status;
+    private String notes;
+    private Long orderItemId;
     private ProductInfo product;
+    private Long userId;
+    private String userName;
+    private String userPhone;
     
     @Getter
     @Setter

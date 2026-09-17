@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,10 +50,14 @@ public class ReturnRequestController {
 
     @GetMapping("/return-requests/admin")
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    @Operation(summary = "Admin: Danh sách tất cả yêu cầu đổi/trả")
+    @Operation(summary = "Admin: Danh sách tất cả yêu cầu đổi/trả (phân trang)")
     public ResponseEntity<ApiResponse<List<ReturnRequestResponse>>> getAdmin(
-            @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(ApiResponse.success(returnRequestService.getAdminReturnRequests(status)));
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<ReturnRequestResponse> result = returnRequestService.getAdminReturnRequests(status, page, size);
+        return ResponseEntity.ok(ApiResponse.success(result.getContent(),
+            new ApiResponse.PageMeta(page, size, result.getTotalElements(), result.getTotalPages())));
     }
 
     @PutMapping("/return-requests/{id}/review")

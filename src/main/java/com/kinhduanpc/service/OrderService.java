@@ -3,6 +3,7 @@ package com.kinhduanpc.service;
 import com.kinhduanpc.config.OrderConfig;
 import com.kinhduanpc.dto.order.*;
 import com.kinhduanpc.entity.*;
+import com.kinhduanpc.repository.WarrantyRepository;
 import com.kinhduanpc.exception.AppException;
 import com.kinhduanpc.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -52,6 +54,7 @@ public class OrderService {
     private final NotificationService notificationService;
     private final VoucherPolicyService voucherPolicyService;
     private final OrderConfig orderConfig;
+    private final WarrantyRepository warrantyRepo;
 
     private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
 
@@ -462,9 +465,12 @@ public class OrderService {
         recordHistory(order, fromStatus, Order.OrderStatus.cancelled, customer, "customer",
             reason != null ? "Khách hủy: " + reason : "Khách hủy đơn");
 
-        if (customer != null && customer.getEmail() != null) {
-            emailService.sendOrderStatusUpdate(customer.getEmail(),
-                customer.getFullName(), order.getOrderCode(), "Đã hủy");
+        String cancelEmail = (customer != null && customer.getEmail() != null)
+            ? customer.getEmail() : order.getGuestEmail();
+        String cancelName  = (customer != null) ? customer.getFullName() : order.getShippingName();
+        if (cancelEmail != null) {
+            emailService.sendOrderStatusUpdate(cancelEmail, cancelName,
+                order.getOrderCode(), "cancelled", reason);
         }
 
         return toResponse(order);
@@ -505,14 +511,23 @@ public class OrderService {
 
         orderRepo.save(order);
 
+        // Tự động tạo warranty cho từng sản phẩm khi đơn được giao
+        if (newStatus == Order.OrderStatus.delivered && order.getUser() != null) {
+            createWarrantiesForOrder(order);
+        }
+
         // Tìm nhân viên thực hiện để ghi history
         User performer = (performedByUserId != null)
             ? userRepo.findById(performedByUserId).orElse(null) : null;
         recordHistory(order, currentStatus, newStatus, performer, "staff", staffNote);
 
-        if (order.getUser() != null && order.getUser().getEmail() != null) {
-            emailService.sendOrderStatusUpdate(order.getUser().getEmail(),
-                order.getUser().getFullName(), order.getOrderCode(), status);
+        String recipientEmail = (order.getUser() != null && order.getUser().getEmail() != null)
+            ? order.getUser().getEmail() : order.getGuestEmail();
+        String recipientName  = (order.getUser() != null)
+            ? order.getUser().getFullName() : order.getShippingName();
+        if (recipientEmail != null) {
+            emailService.sendOrderStatusUpdate(recipientEmail, recipientName,
+                order.getOrderCode(), status, staffNote);
         }
 
         // Trigger chính sách voucher khi đơn hàng hoàn thành
@@ -521,6 +536,23 @@ public class OrderService {
         }
 
         return toResponse(order);
+    }
+
+    private void createWarrantiesForOrder(Order order) {
+        LocalDate today = LocalDate.now();
+        for (OrderItem item : order.getItems()) {
+            if (item.getWarrantyMonths() == null || item.getWarrantyMonths() <= 0) continue;
+            if (warrantyRepo.existsByOrderItemId(item.getId())) continue;
+            warrantyRepo.save(Warranty.builder()
+                .orderItemId(item.getId())
+                .product(item.getProduct())
+                .user(order.getUser())
+                .purchaseDate(today)
+                .warrantyExpiresAt(today.plusMonths(item.getWarrantyMonths()))
+                .warrantyMonths(item.getWarrantyMonths())
+                .status("active")
+                .build());
+        }
     }
 
     private void recordHistory(Order order, Order.OrderStatus from, Order.OrderStatus to,

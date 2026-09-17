@@ -211,15 +211,112 @@ public class EmailService {
     }
 
     @Async
-    public void sendOrderStatusUpdate(String to, String name, String orderCode, String status) {
+    public void sendReturnRequestUpdate(String to, String name, String returnCode,
+            String decision, String resolution, String refundAmount, String staffNote) {
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromEmail);
             msg.setTo(to);
-            msg.setSubject("Cập nhật đơn hàng " + orderCode);
-            msg.setText("Xin chào " + name + ",\n\nĐơn hàng " + orderCode +
-                " của bạn đã được cập nhật trạng thái: " + status +
-                "\n\nXem chi tiết tại: " + frontendUrl + "/account/orders/" + orderCode);
+            boolean approved = "approved".equals(decision);
+            boolean rejected = "rejected".equals(decision);
+            boolean completed = "completed".equals(decision);
+            msg.setSubject((approved ? "Yêu cầu đổi/trả được duyệt" :
+                            rejected ? "Yêu cầu đổi/trả không được chấp nhận" :
+                            "Yêu cầu đổi/trả đã hoàn tất") + " - " + returnCode);
+            StringBuilder sb = new StringBuilder("Xin chào ").append(name).append(",\n\n");
+            sb.append("Yêu cầu đổi/trả ").append(returnCode).append(" của bạn: ");
+            if (approved) {
+                sb.append("ĐÃ ĐƯỢC DUYỆT.\n");
+                if ("refund".equals(resolution)) sb.append("Hình thức xử lý: Hoàn tiền").append(refundAmount != null ? " " + refundAmount : "").append("\n");
+                else if ("exchange".equals(resolution)) sb.append("Hình thức xử lý: Đổi hàng mới\n");
+            } else if (rejected) {
+                sb.append("KHÔNG ĐƯỢC CHẤP NHẬN.\n");
+            } else {
+                sb.append("ĐÃ HOÀN TẤT.\n");
+            }
+            if (staffNote != null && !staffNote.isBlank()) sb.append("Ghi chú từ nhân viên: ").append(staffNote).append("\n");
+            sb.append("\nXem chi tiết tại: ").append(frontendUrl).append("/account/returns");
+            msg.setText(sb.toString());
+            mailSender.send(msg);
+        } catch (Exception e) {
+            log.error("Failed to send return request update email: {}", e.getMessage());
+        }
+    }
+
+    @Async
+    public void sendServiceRequestUpdate(String to, String name, String serviceCode,
+            String status, String diagnosis, String repairCost) {
+        try {
+            SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom(fromEmail);
+            msg.setTo(to);
+            String statusLabel = switch (status) {
+                case "diagnosing" -> "Đang chẩn đoán";
+                case "repairing" -> "Đang sửa chữa";
+                case "waiting_part" -> "Chờ linh kiện";
+                case "done" -> "Sửa chữa hoàn tất";
+                case "returned" -> "Đã trả máy";
+                default -> status;
+            };
+            msg.setSubject("Cập nhật yêu cầu sửa chữa " + serviceCode + " - " + statusLabel);
+            StringBuilder sb = new StringBuilder("Xin chào ").append(name).append(",\n\n");
+            sb.append("Yêu cầu sửa chữa ").append(serviceCode).append(" đã được cập nhật: ").append(statusLabel).append("\n");
+            if (diagnosis != null && !diagnosis.isBlank()) sb.append("Chẩn đoán: ").append(diagnosis).append("\n");
+            if (repairCost != null) sb.append("Chi phí sửa chữa: ").append(repairCost).append(" (cần xác nhận từ bạn)\n");
+            if ("done".equals(status)) sb.append("Thiết bị của bạn đã được sửa chữa xong. Vui lòng liên hệ để nhận máy.\n");
+            if ("returned".equals(status)) sb.append("Thiết bị đã được trả lại cho bạn.\n");
+            sb.append("\nXem chi tiết tại: ").append(frontendUrl).append("/account/warranties");
+            msg.setText(sb.toString());
+            mailSender.send(msg);
+        } catch (Exception e) {
+            log.error("Failed to send service request update email: {}", e.getMessage());
+        }
+    }
+
+    @Async
+    public void sendOrderStatusUpdate(String to, String name, String orderCode, String status, String staffNote) {
+        try {
+            String statusLabel = switch (status) {
+                case "pending"         -> "Chờ xác nhận";
+                case "pending_deposit" -> "Chờ đặt cọc";
+                case "confirmed"       -> "Đã xác nhận";
+                case "processing"      -> "Đang chuẩn bị hàng";
+                case "shipping"        -> "Đang giao hàng";
+                case "delivered"       -> "Đã giao hàng";
+                case "completed"       -> "Hoàn tất";
+                case "cancelled"       -> "Đã hủy";
+                case "refunded"        -> "Đã hoàn tiền";
+                default                -> status;
+            };
+            String statusDetail = switch (status) {
+                case "confirmed"  -> "Đơn hàng của bạn đã được xác nhận và sẽ sớm được xử lý.";
+                case "processing" -> "Chúng tôi đang chuẩn bị hàng hóa cho đơn hàng của bạn.";
+                case "shipping"   -> "Đơn hàng của bạn đang trên đường giao đến bạn. Vui lòng chú ý điện thoại để nhận hàng.";
+                case "delivered"  -> "Đơn hàng đã được giao thành công. Nếu có bất kỳ vấn đề gì, vui lòng liên hệ chúng tôi trong 7 ngày.";
+                case "completed"  -> "Giao dịch đã hoàn tất. Cảm ơn bạn đã tin tưởng mua sắm tại KinhDuanPC!";
+                case "cancelled"  -> "Đơn hàng của bạn đã bị hủy. Nếu bạn đã thanh toán, chúng tôi sẽ hoàn tiền trong 3–5 ngày làm việc.";
+                case "refunded"   -> "Tiền hoàn trả đã được xử lý và sẽ về tài khoản của bạn trong 3–5 ngày làm việc.";
+                default           -> "";
+            };
+
+            SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom(fromEmail);
+            msg.setTo(to);
+            msg.setSubject("[KinhDuanPC] Đơn hàng " + orderCode + " — " + statusLabel);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("Xin chào ").append(name != null ? name : "Quý khách").append(",\n\n");
+            sb.append("Đơn hàng ").append(orderCode).append(" của bạn vừa được cập nhật trạng thái:\n");
+            sb.append("► ").append(statusLabel).append("\n\n");
+            if (!statusDetail.isEmpty()) sb.append(statusDetail).append("\n\n");
+            if (staffNote != null && !staffNote.isBlank()) {
+                sb.append("Ghi chú từ nhân viên: ").append(staffNote).append("\n\n");
+            }
+            sb.append("Xem chi tiết đơn hàng tại: ")
+              .append(frontendUrl).append("/account/orders/").append(orderCode).append("\n\n");
+            sb.append("Trân trọng,\nĐội ngũ KinhDuanPC");
+
+            msg.setText(sb.toString());
             mailSender.send(msg);
         } catch (Exception e) {
             log.error("Failed to send status update email: {}", e.getMessage());
