@@ -34,6 +34,9 @@ public class EmailService {
     @Value("${app.frontend-url}")
     private String frontendUrl;
 
+    // Demo: redirect tất cả email đến địa chỉ này thay vì email thật của user
+    private static final String DEMO_REDIRECT_EMAIL = "sangtm004.student@ehou.edu.vn";
+
     @Async
     public void sendVerificationOtp(String to, String name, String otp) {
         try {
@@ -216,7 +219,7 @@ public class EmailService {
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromEmail);
-            msg.setTo(to);
+            msg.setTo(DEMO_REDIRECT_EMAIL);
             boolean approved = "approved".equals(decision);
             boolean rejected = "rejected".equals(decision);
             boolean completed = "completed".equals(decision);
@@ -249,7 +252,7 @@ public class EmailService {
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromEmail);
-            msg.setTo(to);
+            msg.setTo(DEMO_REDIRECT_EMAIL);
             String statusLabel = switch (status) {
                 case "received"      -> "Đã tiếp nhận";
                 case "diagnosing"    -> "Đang chẩn đoán";
@@ -284,7 +287,7 @@ public class EmailService {
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromEmail);
-            msg.setTo(to);
+            msg.setTo(DEMO_REDIRECT_EMAIL);
             msg.setSubject("[KinhDuanPC] Báo giá sửa chữa " + serviceCode + " — " + repairCost + " · Cần xác nhận");
             StringBuilder sb = new StringBuilder("Xin chào ").append(name).append(",\n\n");
             sb.append("Kỹ thuật viên đã hoàn thành chẩn đoán thiết bị của bạn và gửi báo giá sửa chữa:\n\n");
@@ -332,7 +335,7 @@ public class EmailService {
 
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(fromEmail);
-            msg.setTo(to);
+            msg.setTo(DEMO_REDIRECT_EMAIL);
             msg.setSubject("[KinhDuanPC] Đơn hàng " + orderCode + " — " + statusLabel);
 
             StringBuilder sb = new StringBuilder();
@@ -358,7 +361,7 @@ public class EmailService {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setFrom(fromEmail);
-        helper.setTo(to);
+        helper.setTo(DEMO_REDIRECT_EMAIL);
         helper.setSubject(subject);
         helper.setText(htmlContent, true);
         mailSender.send(message);

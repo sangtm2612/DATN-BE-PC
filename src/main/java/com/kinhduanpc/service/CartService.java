@@ -109,7 +109,7 @@ public class CartService {
         if (guestCartOpt.isEmpty()) return;
 
         Cart guestCart = guestCartOpt.get();
-        Cart userCart = cartRepo.findByUserId(userId).orElseGet(() -> {
+        Cart userCart = findOrDeduplicateUserCart(userId).orElseGet(() -> {
             Cart c = Cart.builder()
                 .user(userRepo.findById(userId).orElseThrow())
                 .expiresAt(LocalDateTime.now().plusDays(30))
@@ -136,7 +136,7 @@ public class CartService {
 
     private Cart findOrCreateCart(Long userId, String sessionId) {
         if (userId != null) {
-            return cartRepo.findByUserId(userId).orElseGet(() ->
+            return findOrDeduplicateUserCart(userId).orElseGet(() ->
                 cartRepo.save(Cart.builder()
                     .user(userRepo.findById(userId).orElseThrow())
                     .expiresAt(LocalDateTime.now().plusDays(30))
@@ -147,6 +147,34 @@ public class CartService {
                 .sessionId(sessionId)
                 .expiresAt(LocalDateTime.now().plusDays(30))
                 .build()));
+    }
+
+    private Optional<Cart> findOrDeduplicateUserCart(Long userId) {
+        List<Cart> carts = cartRepo.findAllByUserId(userId);
+        if (carts.isEmpty()) return Optional.empty();
+        if (carts.size() == 1) return Optional.of(carts.get(0));
+
+        // Merge duplicate carts: keep the first, absorb items from the rest
+        Cart primary = carts.get(0);
+        for (int i = 1; i < carts.size(); i++) {
+            Cart dup = carts.get(i);
+            for (CartItem item : dup.getItems()) {
+                boolean exists = primary.getItems().stream()
+                    .anyMatch(it -> it.getProduct().getId().equals(item.getProduct().getId()));
+                if (!exists) {
+                    CartItem moved = CartItem.builder()
+                        .cart(primary)
+                        .product(item.getProduct())
+                        .quantity(item.getQuantity())
+                        .unitPrice(item.getUnitPrice())
+                        .build();
+                    primary.getItems().add(moved);
+                }
+            }
+            cartRepo.delete(dup);
+        }
+        cartRepo.save(primary);
+        return Optional.of(primary);
     }
 
     private CartResponse toResponse(Cart cart) {

@@ -221,14 +221,25 @@ public class UserService {
     public AdminUserResponse updateUserStatus(Long userId, String status) {
         User user = userRepo.findById(userId)
             .orElseThrow(() -> AppException.notFound("Người dùng"));
-        user.setStatus(User.UserStatus.valueOf(status));
+        User.UserStatus newStatus;
+        try {
+            newStatus = User.UserStatus.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            throw AppException.badRequest("INVALID_STATUS", "Trạng thái không hợp lệ: " + status);
+        }
+        user.setStatus(newStatus);
         return toAdminResponse(userRepo.save(user));
     }
 
     public AdminUserResponse updateUserRole(Long userId, String role) {
         User user = userRepo.findById(userId)
             .orElseThrow(() -> AppException.notFound("Người dùng"));
-        User.UserRole newRole = User.UserRole.valueOf(role);
+        User.UserRole newRole;
+        try {
+            newRole = User.UserRole.valueOf(role);
+        } catch (IllegalArgumentException e) {
+            throw AppException.badRequest("INVALID_ROLE", "Vai trò không hợp lệ: " + role);
+        }
         if (newRole == User.UserRole.admin) {
             throw AppException.badRequest("FORBIDDEN", "Không thể cấp quyền admin qua API");
         }

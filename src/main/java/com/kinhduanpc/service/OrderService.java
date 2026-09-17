@@ -42,6 +42,7 @@ public class OrderService {
     private final CartRepository cartRepo;
     private final ProductRepository productRepo;
     private final UserRepository userRepo;
+    private final UserAddressRepository userAddressRepo;
     private final VoucherRepository voucherRepo;
     private final VoucherService voucherService;
     private final PcBuildRepository pcBuildRepo;
@@ -69,8 +70,9 @@ public class OrderService {
         // Lấy cart (ưu tiên userId, fallback sessionId)
         Cart cart;
         if (userId != null) {
-            cart = cartRepo.findByUserId(userId)
-                .orElseThrow(() -> AppException.badRequest("EMPTY_CART", "Giỏ hàng trống"));
+            List<Cart> userCarts = cartRepo.findAllByUserId(userId);
+            cart = userCarts.isEmpty() ? null : userCarts.get(0);
+            if (cart == null) throw AppException.badRequest("EMPTY_CART", "Giỏ hàng trống");
         } else if (sessionId != null && !sessionId.isEmpty()) {
             cart = cartRepo.findBySessionId(sessionId)
                 .orElseThrow(() -> AppException.badRequest("EMPTY_CART", "Giỏ hàng trống"));
@@ -275,6 +277,21 @@ public class OrderService {
         // Clear cart
         cart.getItems().clear();
         cartRepo.save(cart);
+
+        // Lưu địa chỉ giao hàng làm default nếu user chưa có địa chỉ nào
+        if (user != null && req.getPickupStoreId() == null
+                && userAddressRepo.countByUserId(userId) == 0) {
+            userAddressRepo.save(UserAddress.builder()
+                .user(user)
+                .fullName(req.getShippingName())
+                .phone(req.getShippingPhone())
+                .province(req.getShippingProvince())
+                .district(req.getShippingDistrict())
+                .ward(req.getShippingWard())
+                .addressDetail(req.getShippingAddress())
+                .isDefault(true)
+                .build());
+        }
 
         // Mark voucher as used (nếu có)
         if (voucher != null && userId != null) {

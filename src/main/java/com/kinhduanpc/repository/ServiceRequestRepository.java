@@ -16,6 +16,11 @@ public interface ServiceRequestRepository extends JpaRepository<ServiceRequest, 
     List<ServiceRequest> findByUserId(Long userId);
     Optional<ServiceRequest> findByServiceCode(String serviceCode);
 
+    boolean existsByWarrantyIdAndStatusNot(Long warrantyId, ServiceRequest.ServiceStatus status);
+
+    @Query("SELECT MAX(sr.serviceCode) FROM ServiceRequest sr WHERE sr.serviceCode LIKE :prefix%")
+    Optional<String> findMaxServiceCodeByPrefix(@Param("prefix") String prefix);
+
     @Query("SELECT sr FROM ServiceRequest sr JOIN FETCH sr.user ORDER BY sr.createdAt DESC")
     List<ServiceRequest> findAllByOrderByCreatedAtDesc();
 

@@ -4,6 +4,7 @@ import com.kinhduanpc.dto.warranty.*;
 import com.kinhduanpc.entity.*;
 import com.kinhduanpc.exception.AppException;
 import com.kinhduanpc.repository.*;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,18 @@ public class WarrantyService {
     private final AuditLogService auditLogService;
 
     private static final AtomicInteger sequence = new AtomicInteger(1);
+
+    @PostConstruct
+    public void initServiceCodeSequence() {
+        String year = String.valueOf(LocalDateTime.now().getYear());
+        String prefix = "SV-" + year + "-";
+        serviceRequestRepo.findMaxServiceCodeByPrefix(prefix).ifPresent(maxCode -> {
+            try {
+                int maxSeq = Integer.parseInt(maxCode.substring(prefix.length()));
+                sequence.set(maxSeq + 1);
+            } catch (NumberFormatException ignored) {}
+        });
+    }
 
     private static final Set<ServiceRequest.ServiceStatus> POST_DIAGNOSIS_STATUSES = Set.of(
             ServiceRequest.ServiceStatus.repairing,
@@ -80,6 +93,10 @@ public class WarrantyService {
                 String statusLabel = "expired".equals(warranty.getStatus()) ? "đã hết hạn" : "đã bị vô hiệu";
                 throw AppException.badRequest("WARRANTY_NOT_ACTIVE",
                     "Bảo hành này " + statusLabel + " và không thể dùng để gửi yêu cầu sửa chữa");
+            }
+            if (serviceRequestRepo.existsByWarrantyIdAndStatusNot(warranty.getId(), ServiceRequest.ServiceStatus.returned)) {
+                throw AppException.badRequest("DUPLICATE_REQUEST",
+                    "Sản phẩm này đang có yêu cầu sửa chữa đang xử lý. Vui lòng chờ hoàn tất trước khi gửi yêu cầu mới.");
             }
             productName = warranty.getProduct().getName();
             serialNumber = warranty.getSerialNumber();

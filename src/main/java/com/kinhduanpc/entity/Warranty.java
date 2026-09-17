@@ -40,7 +40,8 @@ public class Warranty {
     @Column(name = "warranty_months", nullable = false)
     private Integer warrantyMonths;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "warranty_status")
+    @org.hibernate.annotations.ColumnTransformer(write = "?::warranty_status")
     private String status = "active"; // active, expired, voided, in_service
 
     @Column(columnDefinition = "TEXT")
