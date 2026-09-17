@@ -159,7 +159,7 @@ public class VoucherService {
         if (voucher.getVoucherType() == Voucher.VoucherType.PERSONAL) {
             UserVoucher userVoucher = userVoucherRepo.findByUserIdAndVoucherCode(userId, voucherCode)
                 .orElseThrow(() -> AppException.notFound("UserVoucher"));
-            
+
             userVoucher.setStatus(UserVoucher.Status.USED);
             userVoucher.setUsedAt(LocalDateTime.now());
             userVoucher.setOrderId(orderId);
@@ -168,6 +168,23 @@ public class VoucherService {
 
         // Update voucher usage count
         voucher.setUsedCount(voucher.getUsedCount() + 1);
+        voucherRepo.save(voucher);
+    }
+
+    public void unmarkVoucherAsUsed(Long userId, String voucherCode) {
+        Voucher voucher = voucherRepo.findByCode(voucherCode).orElse(null);
+        if (voucher == null) return;
+
+        if (voucher.getVoucherType() == Voucher.VoucherType.PERSONAL && userId != null) {
+            userVoucherRepo.findByUserIdAndVoucherCode(userId, voucherCode).ifPresent(uv -> {
+                uv.setStatus(UserVoucher.Status.AVAILABLE);
+                uv.setUsedAt(null);
+                uv.setOrderId(null);
+                userVoucherRepo.save(uv);
+            });
+        }
+
+        voucher.setUsedCount(Math.max(0, voucher.getUsedCount() - 1));
         voucherRepo.save(voucher);
     }
 

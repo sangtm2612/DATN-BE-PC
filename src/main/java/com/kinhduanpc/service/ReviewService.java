@@ -26,6 +26,7 @@ public class ReviewService {
     private final ProductRepository productRepo;
     private final ReviewHelpfulRepository reviewHelpfulRepo;
     private final VoucherPolicyService voucherPolicyService;
+    private final OrderRepository orderRepo;
 
     @Transactional(readOnly = true)
     public Page<ReviewDTO> getReviewsByProduct(Long productId, int page, int size) {
@@ -53,7 +54,7 @@ public class ReviewService {
             .title(request.getTitle())
             .content(request.getContent())
             .isVisible(true)
-            .isVerifiedPurchase(false) // TODO: Check if user bought this product
+            .isVerifiedPurchase(orderRepo.existsPurchaseByUserAndProduct(userId, productId))
             .helpfulCount(0)
             .build();
 

@@ -467,12 +467,12 @@ public class OrderService {
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelledReason(reason);
 
-        // Hoàn lại tồn kho
-        for (OrderItem item : order.getItems()) {
-            Product p = item.getProduct();
-            p.setStockQty(p.getStockQty() + item.getQuantity());
-            p.setSoldQty(Math.max(0, p.getSoldQty() - item.getQuantity()));
-            productRepo.save(p);
+        restoreStockForOrder(order);
+
+        // Hoàn lại voucher nếu có
+        if (order.getVoucherCode() != null) {
+            Long ownerId = order.getUser() != null ? order.getUser().getId() : null;
+            voucherService.unmarkVoucherAsUsed(ownerId, order.getVoucherCode());
         }
 
         orderRepo.save(order);
@@ -522,14 +522,21 @@ public class OrderService {
             case shipping    -> order.setShippedAt(LocalDateTime.now());
             case delivered   -> order.setDeliveredAt(LocalDateTime.now());
             case completed   -> order.setCompletedAt(LocalDateTime.now());
-            case cancelled   -> order.setCancelledAt(LocalDateTime.now());
+            case cancelled   -> {
+                order.setCancelledAt(LocalDateTime.now());
+                restoreStockForOrder(order);
+                if (order.getVoucherCode() != null) {
+                    Long ownerId = order.getUser() != null ? order.getUser().getId() : null;
+                    voucherService.unmarkVoucherAsUsed(ownerId, order.getVoucherCode());
+                }
+            }
             default -> {}
         }
 
         orderRepo.save(order);
 
-        // Tự động tạo warranty cho từng sản phẩm khi đơn được giao
-        if (newStatus == Order.OrderStatus.delivered && order.getUser() != null) {
+        // Tự động tạo warranty cho từng sản phẩm khi đơn được giao (kể cả khách vãng lai)
+        if (newStatus == Order.OrderStatus.delivered) {
             createWarrantiesForOrder(order);
         }
 
@@ -553,6 +560,35 @@ public class OrderService {
         }
 
         return toResponse(order);
+    }
+
+    private void restoreStockForOrder(Order order) {
+        for (OrderItem item : order.getItems()) {
+            Product p = item.getProduct();
+            p.setStockQty(p.getStockQty() + item.getQuantity());
+            p.setSoldQty(Math.max(0, p.getSoldQty() - item.getQuantity()));
+            productRepo.save(p);
+        }
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60_000)
+    @org.springframework.transaction.annotation.Transactional
+    public void autoCancelExpiredOrders() {
+        List<Order> expired = orderRepo.findByStatusAndAutoCancelAtBefore(
+            Order.OrderStatus.pending_deposit, LocalDateTime.now());
+        for (Order order : expired) {
+            order.setStatus(Order.OrderStatus.cancelled);
+            order.setCancelledAt(LocalDateTime.now());
+            order.setCancelledReason("Hết thời gian đặt cọc, tự động hủy");
+            restoreStockForOrder(order);
+            if (order.getVoucherCode() != null) {
+                Long ownerId = order.getUser() != null ? order.getUser().getId() : null;
+                voucherService.unmarkVoucherAsUsed(ownerId, order.getVoucherCode());
+            }
+            orderRepo.save(order);
+            recordHistory(order, Order.OrderStatus.pending_deposit, Order.OrderStatus.cancelled,
+                null, "system", "Tự động hủy do hết thời gian đặt cọc");
+        }
     }
 
     private void createWarrantiesForOrder(Order order) {
