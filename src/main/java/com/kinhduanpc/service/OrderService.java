@@ -520,7 +520,13 @@ public class OrderService {
             case confirmed   -> order.setConfirmedAt(LocalDateTime.now());
             case processing  -> order.setProcessingAt(LocalDateTime.now());
             case shipping    -> order.setShippedAt(LocalDateTime.now());
-            case delivered   -> order.setDeliveredAt(LocalDateTime.now());
+            case delivered   -> {
+                order.setDeliveredAt(LocalDateTime.now());
+                // COD: tiền mặt thu khi giao → đánh dấu đã thanh toán
+                if (order.getPaymentMethod() == Order.PaymentMethod.cod) {
+                    order.setPaymentStatus(Order.PaymentStatus.paid);
+                }
+            }
             case completed   -> order.setCompletedAt(LocalDateTime.now());
             case cancelled   -> {
                 order.setCancelledAt(LocalDateTime.now());
